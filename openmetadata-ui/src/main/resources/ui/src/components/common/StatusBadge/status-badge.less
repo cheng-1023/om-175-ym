@@ -1,0 +1,80 @@
+/*
+ *  Copyright 2023 Collate.
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
+@import (reference) url('../../../styles/variables.less');
+
+.status-badge {
+  border-radius: @border-radius-md;
+  padding: @padding-xss @padding-xs;
+  text-align: center;
+  max-width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  border: 1px solid;
+
+  &.success {
+    color: @green-10;
+    background-color: @green-9;
+    border-color: @green-10;
+  }
+
+  &.stopped,
+  &.failure {
+    color: @red-10;
+    background-color: @red-9;
+    border-color: @red-10;
+  }
+
+  &.pending {
+    color: @yellow-11;
+    background-color: @yellow-10;
+    border-color: @yellow-11;
+  }
+
+  &.running {
+    color: @primary-heading-color;
+    background-color: @primary-button-background;
+    border-color: @primary-heading-color;
+  }
+
+  &.started,
+  &.inReview {
+    color: @blue-21;
+    background-color: @blue-22;
+    border-color: @blue-21;
+  }
+
+  &.deprecated {
+    color: @grey-19;
+    background-color: @grey-9;
+    border-color: @grey-19;
+  }
+
+  &.activeError {
+    color: @red-17;
+    background-color: @red-18;
+    border-color: @red-17;
+  }
+
+  svg {
+    font-size: 12px;
+  }
+}
+
+.status-badge-label {
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 20px;
+}
