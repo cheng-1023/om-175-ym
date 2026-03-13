@@ -1,0 +1,58 @@
+{
+  "$id": "https://open-metadata.org/schema/api/data/asset/createDataAsset.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CreateDataAssetRequest",
+  "description": "Create DataAsset entity request",
+  "type": "object",
+  "javaType": "org.openmetadata.schema.api.data.asset.CreateDataAsset",
+  "javaInterfaces": ["org.openmetadata.schema.CreateEntity"],
+  "properties": {
+    "name": {
+      "description": "Name that identifies this data asset.",
+      "$ref": "../../../type/basic.json#/definitions/entityName"
+    },
+    "displayName": {
+      "description": "Display Name that identifies this data asset.",
+      "type": "string"
+    },
+    "description": {
+      "description": "Description of the data asset.",
+      "$ref": "../../../type/basic.json#/definitions/markdown"
+    },
+    "assetType": {
+      "description": "Fully qualified name of the AssetType that defines the attributes for this data asset.",
+      "type": "string"
+    },
+    "catalog": {
+      "description": "Fully qualified name of the AssetCatalog this data asset belongs to.",
+      "type": "string"
+    },
+    "owners": {
+      "description": "Owners of this data asset.",
+      "$ref": "../../../type/entityReferenceList.json",
+      "default": null
+    },
+    "reviewers": {
+      "description": "User references of the reviewers for this data asset.",
+      "$ref": "../../../type/entityReferenceList.json"
+    },
+    "tags": {
+      "description": "Tags for this data asset.",
+      "type": "array",
+      "items": {
+        "$ref": "../../../type/tagLabel.json"
+      },
+      "default": null
+    },
+    "domain": {
+      "description": "Fully qualified name of the domain the DataAsset belongs to.",
+      "type": "string"
+    },
+    "extension": {
+      "description": "Entity extension data with custom attributes added to the entity.",
+      "$ref": "../../../type/basic.json#/definitions/entityExtension"
+    }
+  },
+  "required": ["name", "description", "assetType"],
+  "additionalProperties": false
+}

@@ -1,0 +1,59 @@
+/*
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements. See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License. You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
+package org.openmetadata.service.search.indexes.asset;
+
+import java.util.Map;
+import org.openmetadata.schema.entity.data.asset.AssetAttribute;
+import org.openmetadata.service.Entity;
+import org.openmetadata.service.search.indexes.SearchIndex;
+
+public class AssetAttributeIndex implements SearchIndex {
+  final AssetAttribute assetAttribute;
+
+  public AssetAttributeIndex(AssetAttribute assetAttribute) {
+    this.assetAttribute = assetAttribute;
+  }
+
+  @Override
+  public Object getEntity() {
+    return assetAttribute;
+  }
+
+  public Map<String, Object> buildSearchIndexDocInternal(Map<String, Object> doc) {
+    Map<String, Object> commonAttributes =
+        getCommonAttributesMap(assetAttribute, Entity.ASSET_ATTRIBUTE);
+    doc.putAll(commonAttributes);
+    if (assetAttribute.getAttributeCategory() != null) {
+      doc.put("attributeCategory", assetAttribute.getAttributeCategory());
+    }
+    if (assetAttribute.getDataType() != null) {
+      doc.put("dataType", assetAttribute.getDataType());
+    }
+    if (assetAttribute.getRequired() != null) {
+      doc.put("required", assetAttribute.getRequired());
+    }
+    return doc;
+  }
+
+  public static Map<String, Float> getFields() {
+    Map<String, Float> fields = SearchIndex.getDefaultFields();
+    fields.put("attributeCategory", 5.0f);
+    fields.put("dataType", 3.0f);
+    return fields;
+  }
+}

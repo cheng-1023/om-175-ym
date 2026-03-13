@@ -5,6 +5,11 @@ import org.openmetadata.schema.analytics.ReportData;
 import org.openmetadata.schema.entity.classification.Classification;
 import org.openmetadata.schema.entity.classification.Tag;
 import org.openmetadata.schema.entity.data.APICollection;
+import org.openmetadata.schema.entity.data.asset.AssetAttribute;
+import org.openmetadata.schema.entity.data.asset.AssetCatalog;
+import org.openmetadata.schema.entity.data.asset.AssetCategory;
+import org.openmetadata.schema.entity.data.asset.AssetType;
+import org.openmetadata.schema.entity.data.asset.DataAsset;
 import org.openmetadata.schema.entity.data.APIEndpoint;
 import org.openmetadata.schema.entity.data.Chart;
 import org.openmetadata.schema.entity.data.Container;
@@ -34,6 +39,11 @@ import org.openmetadata.schema.tests.TestSuite;
 import org.openmetadata.schema.tests.type.TestCaseResolutionStatus;
 import org.openmetadata.schema.tests.type.TestCaseResult;
 import org.openmetadata.service.Entity;
+import org.openmetadata.service.search.indexes.asset.AssetAttributeIndex;
+import org.openmetadata.service.search.indexes.asset.AssetCatalogIndex;
+import org.openmetadata.service.search.indexes.asset.AssetCategoryIndex;
+import org.openmetadata.service.search.indexes.asset.AssetTypeIndex;
+import org.openmetadata.service.search.indexes.asset.DataAssetIndex;
 import org.openmetadata.service.search.indexes.APICollectionIndex;
 import org.openmetadata.service.search.indexes.APIEndpointIndex;
 import org.openmetadata.service.search.indexes.APIServiceIndex;
@@ -136,6 +146,11 @@ public class SearchIndexFactory {
       case Entity.TEST_CASE_RESOLUTION_STATUS -> new TestCaseResolutionStatusIndex(
           (TestCaseResolutionStatus) entity);
       case Entity.TEST_CASE_RESULT -> new TestCaseResultIndex((TestCaseResult) entity);
+      case Entity.ASSET_CATEGORY -> new AssetCategoryIndex((AssetCategory) entity);
+      case Entity.ASSET_CATALOG -> new AssetCatalogIndex((AssetCatalog) entity);
+      case Entity.ASSET_ATTRIBUTE -> new AssetAttributeIndex((AssetAttribute) entity);
+      case Entity.ASSET_TYPE -> new AssetTypeIndex((AssetType) entity);
+      case Entity.DATA_ASSET -> new DataAssetIndex((DataAsset) entity);
       default -> buildExternalIndexes(entityType, entity);
     };
   }

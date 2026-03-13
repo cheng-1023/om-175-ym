@@ -14,10 +14,16 @@
 import i18next from 'i18next';
 import { ReactComponent as GovernIcon } from '../assets/svg/bank.svg';
 import { ReactComponent as ClassificationIcon } from '../assets/svg/classification.svg';
+import { ReactComponent as DataAssetIcon } from '../assets/svg/data-asset.svg';
 import { ReactComponent as ExploreIcon } from '../assets/svg/explore.svg';
 import { ReactComponent as GlossaryIcon } from '../assets/svg/glossary.svg';
 import { ReactComponent as AlertIcon } from '../assets/svg/ic-alert.svg';
+import { ReactComponent as AssetAttributesIcon } from '../assets/svg/ic-asset-attributes.svg';
+import { ReactComponent as AssetCatalogsIcon } from '../assets/svg/ic-asset-catalogs.svg';
+import { ReactComponent as AssetOverviewIcon } from '../assets/svg/ic-asset-overview.svg';
+import { ReactComponent as AssetTypesIcon } from '../assets/svg/ic-asset-types.svg';
 import { ReactComponent as DataQualityIcon } from '../assets/svg/ic-data-contract.svg';
+import { ReactComponent as DataAssetsListIcon } from '../assets/svg/ic-data-assets-list.svg';
 import { ReactComponent as DomainsIcon } from '../assets/svg/ic-domain.svg';
 import { ReactComponent as HomeIcon } from '../assets/svg/ic-home.svg';
 import { ReactComponent as IncidentMangerIcon } from '../assets/svg/ic-incident-manager.svg';
@@ -103,6 +109,49 @@ export const SIDEBAR_LIST: Array<LeftSidebarItem> = [
     redirect_url: ROUTES.DOMAIN,
     icon: DomainsIcon,
     dataTestId: `app-bar-item-${SidebarItem.DOMAIN}`,
+  },
+  {
+    key: ROUTES.ASSETS,
+    title: i18next.t('label.data-assets'),
+    icon: DataAssetIcon,
+    dataTestId: `app-bar-item-${SidebarItem.ASSETS}`,
+    children: [
+      {
+        key: ROUTES.ASSET_OVERVIEW,
+        title: i18next.t('label.asset-overview'),
+        redirect_url: ROUTES.ASSET_OVERVIEW,
+        icon: AssetOverviewIcon,
+        dataTestId: 'app-bar-item-asset-overview',
+      },
+      {
+        key: ROUTES.ASSET_CATALOGS,
+        title: i18next.t('label.asset-catalogs'),
+        redirect_url: ROUTES.ASSET_CATALOGS,
+        icon: AssetCatalogsIcon,
+        dataTestId: 'app-bar-item-asset-catalogs',
+      },
+      {
+        key: ROUTES.ASSET_TYPES,
+        title: i18next.t('label.asset-types'),
+        redirect_url: ROUTES.ASSET_TYPES,
+        icon: AssetTypesIcon,
+        dataTestId: 'app-bar-item-asset-types',
+      },
+      {
+        key: ROUTES.ASSET_ATTRIBUTES,
+        title: i18next.t('label.asset-attributes'),
+        redirect_url: ROUTES.ASSET_ATTRIBUTES,
+        icon: AssetAttributesIcon,
+        dataTestId: 'app-bar-item-asset-attributes',
+      },
+      {
+        key: ROUTES.DATA_ASSETS,
+        title: i18next.t('label.data-assets-list'),
+        redirect_url: ROUTES.DATA_ASSETS,
+        icon: DataAssetsListIcon,
+        dataTestId: 'app-bar-item-data-assets-list',
+      },
+    ],
   },
   {
     key: 'governance',

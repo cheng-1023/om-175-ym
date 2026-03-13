@@ -187,6 +187,13 @@ public final class Entity {
 
   public static final String GLOSSARY = "glossary";
   public static final String GLOSSARY_TERM = "glossaryTerm";
+
+  // Data Asset Module Entity Types
+  public static final String ASSET_CATEGORY = "assetCategory";
+  public static final String ASSET_CATALOG = "assetCatalog";
+  public static final String ASSET_ATTRIBUTE = "assetAttribute";
+  public static final String ASSET_TYPE = "assetType";
+  public static final String DATA_ASSET = "dataAsset";
   public static final String TAG = "tag";
   public static final String CLASSIFICATION = "classification";
   public static final String TYPE = "type";

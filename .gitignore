@@ -145,3 +145,6 @@ ingestion/.nox/
 # Temporary files
 *.tmp
 *.temp 
+
+.claude/
+dev/

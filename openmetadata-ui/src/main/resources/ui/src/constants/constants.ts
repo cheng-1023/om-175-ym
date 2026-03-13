@@ -287,6 +287,16 @@ export const ROUTES = {
   METRICS: '/metrics',
   ADD_METRIC: '/metrics/add-metric',
 
+  // Data Assets
+  ASSETS: '/assets',
+  ASSET_CATEGORIES: '/assets/categories',
+  ASSET_CATALOGS: '/assets/catalogs',
+  ASSET_ATTRIBUTES: '/assets/attributes',
+  ASSET_ATTRIBUTE_DETAILS: `/assets/attributes/${PLACEHOLDER_ROUTE_FQN}`,
+  ASSET_TYPES: '/assets/types',
+  ASSET_OVERVIEW: '/assets/overview',
+  DATA_ASSETS: '/assets/data',
+
   // Entity Import
   ENTITY_IMPORT: `/bulk/import/${PLACEHOLDER_ROUTE_ENTITY_TYPE}/${PLACEHOLDER_ROUTE_FQN}`,
 

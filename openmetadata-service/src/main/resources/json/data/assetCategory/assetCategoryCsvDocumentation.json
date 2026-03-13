@@ -1,0 +1,13 @@
+{
+  "summary": "AssetCategory CSV file is used for importing and exporting asset categories.",
+  "headers": [
+    { "name": "name", "required": true, "description": "Name of the asset category.", "examples": ["`Business Assets`, `Technical Assets`"] },
+    { "name": "displayName", "required": false, "description": "Display name for the category.", "examples": ["`业务资产`, `技术资产`"] },
+    { "name": "description", "required": false, "description": "Description of the asset category in Markdown format.", "examples": ["`Business related assets category`"] },
+    { "name": "tags", "required": false, "description": "Fully qualified classification tag names separated by ';'.", "examples": ["`PII.Sensitive`"] },
+    { "name": "reviewers", "required": false, "description": "User names separated by ';'.", "examples": ["`john;adam`"] },
+    { "name": "owner", "required": false, "description": "Owner names separated by ';'.", "examples": ["`user;john`", "`team;marketing`"] },
+    { "name": "domain", "required": false, "description": "Fully qualified domain name.", "examples": ["`Sales`"] },
+    { "name": "extension", "required": false, "description": "Custom extension properties.", "examples": ["`customAttribute:value`"] }
+  ]
+}

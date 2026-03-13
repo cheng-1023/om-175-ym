@@ -268,6 +268,44 @@ const AddMetricPage = withSuspenseFallback(
   )
 );
 
+// Data Assets Pages
+const AssetOverviewPage = withSuspenseFallback(
+  React.lazy(
+    () => import('../../pages/asset/AssetOverviewPage/AssetOverviewPage')
+  )
+);
+
+// Data Assets Pages
+const AssetCategoryPage = withSuspenseFallback(
+  React.lazy(
+    () => import('../../pages/asset/AssetCategoryPage/AssetCategoryPage')
+  )
+);
+const AssetCatalogPage = withSuspenseFallback(
+  React.lazy(
+    () => import('../../pages/asset/AssetCatalogPage/AssetCatalogPage')
+  )
+);
+const AssetAttributePage = withSuspenseFallback(
+  React.lazy(
+    () => import('../../pages/asset/AssetAttributePage/AssetAttributePage')
+  )
+);
+const AssetAttributeDetailPage = withSuspenseFallback(
+  React.lazy(
+    () =>
+      import(
+        '../../pages/asset/AssetAttributeDetailPage/AssetAttributeDetailPage'
+      )
+  )
+);
+const AssetTypePage = withSuspenseFallback(
+  React.lazy(() => import('../../pages/asset/AssetTypePage/AssetTypePage'))
+);
+const DataAssetPage = withSuspenseFallback(
+  React.lazy(() => import('../../pages/asset/DataAssetPage/DataAssetPage'))
+);
+
 const AuthenticatedAppRouter: FunctionComponent = () => {
   const { permissions } = usePermissionProvider();
 
@@ -531,6 +569,27 @@ const AuthenticatedAppRouter: FunctionComponent = () => {
 
       <Route exact component={MetricListPage} path={ROUTES.METRICS} />
       <Route exact component={AddMetricPage} path={ROUTES.ADD_METRIC} />
+
+      {/* Data Assets Routes */}
+      <Route exact component={AssetOverviewPage} path={ROUTES.ASSET_OVERVIEW} />
+      <Route
+        exact
+        component={AssetCategoryPage}
+        path={ROUTES.ASSET_CATEGORIES}
+      />
+      <Route exact component={AssetCatalogPage} path={ROUTES.ASSET_CATALOGS} />
+      <Route
+        exact
+        component={AssetAttributeDetailPage}
+        path={ROUTES.ASSET_ATTRIBUTE_DETAILS}
+      />
+      <Route
+        exact
+        component={AssetAttributePage}
+        path={ROUTES.ASSET_ATTRIBUTES}
+      />
+      <Route exact component={AssetTypePage} path={ROUTES.ASSET_TYPES} />
+      <Route exact component={DataAssetPage} path={ROUTES.DATA_ASSETS} />
 
       <Route
         component={EntityRouter}
