@@ -1,0 +1,126 @@
+{
+  "$id": "https://open-metadata.org/schema/entity/data/asset/assetAttribute.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AssetAttribute",
+  "description": "This schema defines the AssetAttribute entity. An AssetAttribute defines a property template that can be used by different AssetTypes.",
+  "$comment": "@om-entity-type",
+  "type": "object",
+  "javaType": "org.openmetadata.schema.entity.data.asset.AssetAttribute",
+  "javaInterfaces": ["org.openmetadata.schema.EntityInterface"],
+  "properties": {
+    "id": {
+      "description": "Unique identifier of an asset attribute instance.",
+      "$ref": "../../../type/basic.json#/definitions/uuid"
+    },
+    "name": {
+      "description": "Name of the asset attribute.",
+      "$ref": "../../../type/basic.json#/definitions/entityName"
+    },
+    "fullyQualifiedName": {
+      "description": "FullyQualifiedName same as name.",
+      "$ref": "../../../type/basic.json#/definitions/fullyQualifiedEntityName"
+    },
+    "displayName": {
+      "description": "Display Name that identifies this asset attribute.",
+      "type": "string"
+    },
+    "description": {
+      "description": "Description of the asset attribute.",
+      "$ref": "../../../type/basic.json#/definitions/markdown"
+    },
+    "version": {
+      "description": "Metadata version of the entity.",
+      "$ref": "../../../type/entityHistory.json#/definitions/entityVersion"
+    },
+    "updatedAt": {
+      "description": "Last update time corresponding to the new version of the entity in Unix epoch time milliseconds.",
+      "$ref": "../../../type/basic.json#/definitions/timestamp"
+    },
+    "updatedBy": {
+      "description": "User who made the update.",
+      "type": "string"
+    },
+    "href": {
+      "description": "Link to the resource corresponding to this entity.",
+      "$ref": "../../../type/basic.json#/definitions/href"
+    },
+    "attributeCategory": {
+      "description": "Category of the attribute for grouping. Predefined values: basic, technical, business, quality, security. Custom values can be added via extension.",
+      "type": "string",
+      "enum": ["basic", "technical", "business", "quality", "security"],
+      "default": "basic"
+    },
+    "dataType": {
+      "description": "Data type of the attribute value. Predefined values: string, number, date, boolean, text, array. Custom types can be added via extension.",
+      "type": "string",
+      "enum": ["string", "number", "date", "boolean", "text", "array"],
+      "default": "string"
+    },
+    "required": {
+      "description": "Whether this attribute is required when creating a DataAsset.",
+      "type": "boolean",
+      "default": false
+    },
+    "assignableRoles": {
+      "description": "List of roles that are allowed to fill/edit this attribute. Empty list means all roles can edit.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "reviewers": {
+      "description": "User references of the reviewers for this asset attribute.",
+      "type": "array",
+      "items": {
+        "$ref": "../../../type/entityReference.json"
+      }
+    },
+    "owners": {
+      "description": "Owners of this asset attribute.",
+      "$ref": "../../../type/entityReferenceList.json"
+    },
+    "tags": {
+      "description": "Tags for this asset attribute.",
+      "type": "array",
+      "items": {
+        "$ref": "../../../type/tagLabel.json"
+      },
+      "default": []
+    },
+    "changeDescription": {
+      "description": "Change that lead to this version of the entity.",
+      "$ref": "../../../type/entityHistory.json#/definitions/changeDescription"
+    },
+    "incrementalChangeDescription": {
+      "description": "Incremental change that lead to this version of the entity.",
+      "$ref": "../../../type/entityHistory.json#/definitions/changeDescription"
+    },
+    "deleted": {
+      "description": "When `true` indicates the entity has been soft deleted.",
+      "type": "boolean",
+      "default": false
+    },
+    "provider": {
+      "$ref": "../../../type/basic.json#/definitions/providerType"
+    },
+    "domain": {
+      "description": "Domain the AssetAttribute belongs to.",
+      "$ref": "../../../type/entityReference.json"
+    },
+    "dataProducts": {
+      "description": "List of data products this entity is part of.",
+      "$ref": "../../../type/entityReferenceList.json"
+    },
+    "votes": {
+      "description": "Votes on the entity.",
+      "$ref": "../../../type/votes.json"
+    },
+    "extension": {
+      "description": "Entity extension data with custom attributes added to the entity. Use this to extend attributeCategory and dataType enums.",
+      "$ref": "../../../type/basic.json#/definitions/entityExtension"
+    }
+  },
+  "required": ["id", "name", "description", "attributeCategory", "dataType"],
+  "additionalProperties": false
+}

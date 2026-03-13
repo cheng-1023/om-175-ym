@@ -306,5 +306,40 @@
     "alias": "queryCostRecord",
     "parentAliases": [],
     "childAliases": []
+  },
+  "assetCategory": {
+    "indexName": "asset_category_search_index",
+    "alias": "assetCategory",
+    "indexMappingFile": "/elasticsearch/%s/asset_category_index_mapping.json",
+    "parentAliases": ["all"],
+    "childAliases": ["assetCatalog"]
+  },
+  "assetCatalog": {
+    "indexName": "asset_catalog_search_index",
+    "alias": "assetCatalog",
+    "indexMappingFile": "/elasticsearch/%s/asset_catalog_index_mapping.json",
+    "parentAliases": ["assetCategory", "all"],
+    "childAliases": []
+  },
+  "assetType": {
+    "indexName": "asset_type_search_index",
+    "alias": "assetType",
+    "indexMappingFile": "/elasticsearch/%s/asset_type_index_mapping.json",
+    "parentAliases": ["all"],
+    "childAliases": ["dataAsset"]
+  },
+  "assetAttribute": {
+    "indexName": "asset_attribute_search_index",
+    "alias": "assetAttribute",
+    "indexMappingFile": "/elasticsearch/%s/asset_attribute_index_mapping.json",
+    "parentAliases": ["all"],
+    "childAliases": []
+  },
+  "dataAsset": {
+    "indexName": "data_asset_search_index",
+    "alias": "dataAsset",
+    "indexMappingFile": "/elasticsearch/%s/data_asset_index_mapping.json",
+    "parentAliases": ["assetCatalog", "assetType", "all"],
+    "childAliases": []
   }
 }

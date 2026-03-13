@@ -1,0 +1,137 @@
+{
+  "$id": "https://open-metadata.org/schema/entity/data/asset/dataAsset.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DataAsset",
+  "description": "This schema defines the DataAsset entity. A DataAsset represents a specific data asset instance with dynamic attributes based on its AssetType.",
+  "$comment": "@om-entity-type",
+  "type": "object",
+  "javaType": "org.openmetadata.schema.entity.data.asset.DataAsset",
+  "javaInterfaces": ["org.openmetadata.schema.EntityInterface"],
+  "properties": {
+    "id": {
+      "description": "Unique identifier of a data asset instance.",
+      "$ref": "../../../type/basic.json#/definitions/uuid"
+    },
+    "name": {
+      "description": "Name of the data asset.",
+      "$ref": "../../../type/basic.json#/definitions/entityName"
+    },
+    "fullyQualifiedName": {
+      "description": "Fully qualified name of the data asset.",
+      "$ref": "../../../type/basic.json#/definitions/fullyQualifiedEntityName"
+    },
+    "displayName": {
+      "description": "Display Name that identifies this data asset.",
+      "type": "string"
+    },
+    "description": {
+      "description": "Description of the data asset.",
+      "$ref": "../../../type/basic.json#/definitions/markdown"
+    },
+    "version": {
+      "description": "Metadata version of the entity.",
+      "$ref": "../../../type/entityHistory.json#/definitions/entityVersion"
+    },
+    "updatedAt": {
+      "description": "Last update time corresponding to the new version of the entity in Unix epoch time milliseconds.",
+      "$ref": "../../../type/basic.json#/definitions/timestamp"
+    },
+    "updatedBy": {
+      "description": "User who made the update.",
+      "type": "string"
+    },
+    "href": {
+      "description": "Link to the resource corresponding to this entity.",
+      "$ref": "../../../type/basic.json#/definitions/href"
+    },
+    "assetType": {
+      "description": "Reference to the AssetType that defines the attributes for this data asset. This is a required field.",
+      "$ref": "../../../type/entityReference.json"
+    },
+    "catalog": {
+      "description": "Reference to the AssetCatalog this data asset belongs to. Optional field - if null, the asset is not categorized under any catalog.",
+      "$ref": "../../../type/entityReference.json"
+    },
+    "attributeValues": {
+      "description": "Dynamic attribute values based on the AssetType's attributes definition. Each value corresponds to an attribute from the AssetType.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "Name of the attribute this value corresponds to.",
+            "type": "string"
+          },
+          "value": {
+            "description": "The actual value of the attribute. Type depends on the attribute's dataType definition.",
+            "type": ["string", "number", "boolean", "array", "null"]
+          },
+          "filledBy": {
+            "description": "User who filled this attribute value.",
+            "type": "string"
+          },
+          "filledAt": {
+            "description": "Timestamp when this attribute value was filled.",
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": ["name"]
+      },
+      "default": []
+    },
+    "reviewers": {
+      "description": "User references of the reviewers for this data asset.",
+      "type": "array",
+      "items": {
+        "$ref": "../../../type/entityReference.json"
+      }
+    },
+    "owners": {
+      "description": "Owners of this data asset.",
+      "$ref": "../../../type/entityReferenceList.json"
+    },
+    "tags": {
+      "description": "Tags for this data asset.",
+      "type": "array",
+      "items": {
+        "$ref": "../../../type/tagLabel.json"
+      },
+      "default": []
+    },
+    "domain": {
+      "description": "Domain the DataAsset belongs to.",
+      "$ref": "../../../type/entityReference.json"
+    },
+    "changeDescription": {
+      "description": "Change that lead to this version of the entity.",
+      "$ref": "../../../type/entityHistory.json#/definitions/changeDescription"
+    },
+    "incrementalChangeDescription": {
+      "description": "Incremental change that lead to this version of the entity.",
+      "$ref": "../../../type/entityHistory.json#/definitions/changeDescription"
+    },
+    "deleted": {
+      "description": "When `true` indicates the entity has been soft deleted.",
+      "type": "boolean",
+      "default": false
+    },
+    "provider": {
+      "$ref": "../../../type/basic.json#/definitions/providerType"
+    },
+    "dataProducts": {
+      "description": "List of data products this entity is part of.",
+      "$ref": "../../../type/entityReferenceList.json"
+    },
+    "votes": {
+      "description": "Votes on the entity.",
+      "$ref": "../../../type/votes.json"
+    },
+    "extension": {
+      "description": "Entity extension data with custom attributes added to the entity.",
+      "$ref": "../../../type/basic.json#/definitions/entityExtension"
+    }
+  },
+  "required": ["id", "name", "description", "assetType"],
+  "additionalProperties": false
+}

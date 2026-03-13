@@ -20,8 +20,8 @@ import { COOKIE_VERSION } from '../components/Modals/WhatsNewModal/whatsNewData'
 import { Status } from '../generated/entity/applications/appRunRecord';
 import i18n from '../utils/i18next/LocalUtil';
 import {
-  GlobalSettingOptions,
-  GlobalSettingsMenuCategory,
+    GlobalSettingOptions,
+    GlobalSettingsMenuCategory
 } from './GlobalSettings.constants';
 
 export const LITE_GRAY_COLOR = '#DBE0EB';
@@ -286,6 +286,15 @@ export const ROUTES = {
   // Metric Entity
   METRICS: '/metrics',
   ADD_METRIC: '/metrics/add-metric',
+
+  // Data Assets
+  ASSETS: '/assets',
+  ASSET_CATEGORIES: '/assets/categories',
+  ASSET_CATALOGS: '/assets/catalogs',
+  ASSET_ATTRIBUTES: '/assets/attributes',
+  ASSET_TYPES: '/assets/types',
+  ASSET_OVERVIEW: '/assets/overview',
+  DATA_ASSETS: '/assets/data',
 
   // Entity Import
   ENTITY_IMPORT: `/bulk/import/${PLACEHOLDER_ROUTE_ENTITY_TYPE}/${PLACEHOLDER_ROUTE_FQN}`,

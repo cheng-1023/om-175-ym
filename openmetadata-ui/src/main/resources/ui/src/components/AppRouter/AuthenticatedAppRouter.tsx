@@ -14,8 +14,8 @@
 import React, { FunctionComponent, useMemo } from 'react';
 import { Redirect, Route, Switch } from 'react-router-dom';
 import {
-  PLACEHOLDER_ROUTE_ENTITY_TYPE,
-  ROUTES,
+    PLACEHOLDER_ROUTE_ENTITY_TYPE,
+    ROUTES
 } from '../../constants/constants';
 import { usePermissionProvider } from '../../context/PermissionProvider/PermissionProvider';
 import { ResourceEntity } from '../../context/PermissionProvider/PermissionProvider.interface';
@@ -266,6 +266,34 @@ const AddMetricPage = withSuspenseFallback(
   React.lazy(
     () => import('../../pages/MetricsPage/AddMetricPage/AddMetricPage')
   )
+);
+
+// Data Assets Pages
+const AssetOverviewPage = withSuspenseFallback(
+  React.lazy(
+    () => import('../../pages/asset/AssetOverviewPage/AssetOverviewPage')
+  )
+);
+
+// Data Assets Pages
+const AssetCategoryPage = withSuspenseFallback(
+  React.lazy(
+    () => import('../../pages/asset/AssetCategoryPage/AssetCategoryPage')
+  )
+);
+const AssetCatalogPage = withSuspenseFallback(
+  React.lazy(() => import('../../pages/asset/AssetCatalogPage/AssetCatalogPage'))
+);
+const AssetAttributePage = withSuspenseFallback(
+  React.lazy(
+    () => import('../../pages/asset/AssetAttributePage/AssetAttributePage')
+  )
+);
+const AssetTypePage = withSuspenseFallback(
+  React.lazy(() => import('../../pages/asset/AssetTypePage/AssetTypePage'))
+);
+const DataAssetPage = withSuspenseFallback(
+  React.lazy(() => import('../../pages/asset/DataAssetPage/DataAssetPage'))
 );
 
 const AuthenticatedAppRouter: FunctionComponent = () => {
@@ -531,6 +559,30 @@ const AuthenticatedAppRouter: FunctionComponent = () => {
 
       <Route exact component={MetricListPage} path={ROUTES.METRICS} />
       <Route exact component={AddMetricPage} path={ROUTES.ADD_METRIC} />
+
+      {/* Data Assets Routes */}
+      <Route
+        exact
+        component={AssetOverviewPage}
+        path={ROUTES.ASSET_OVERVIEW}
+      />
+      <Route
+        exact
+        component={AssetCategoryPage}
+        path={ROUTES.ASSET_CATEGORIES}
+      />
+      <Route
+        exact
+        component={AssetCatalogPage}
+        path={ROUTES.ASSET_CATALOGS}
+      />
+      <Route
+        exact
+        component={AssetAttributePage}
+        path={ROUTES.ASSET_ATTRIBUTES}
+      />
+      <Route exact component={AssetTypePage} path={ROUTES.ASSET_TYPES} />
+      <Route exact component={DataAssetPage} path={ROUTES.DATA_ASSETS} />
 
       <Route
         component={EntityRouter}

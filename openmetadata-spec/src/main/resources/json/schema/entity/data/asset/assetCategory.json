@@ -1,0 +1,106 @@
+{
+  "$id": "https://open-metadata.org/schema/entity/data/asset/assetCategory.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AssetCategory",
+  "description": "This schema defines the AssetCategory entity. An AssetCategory is the root node of the asset catalog tree structure.",
+  "$comment": "@om-entity-type",
+  "type": "object",
+  "javaType": "org.openmetadata.schema.entity.data.asset.AssetCategory",
+  "javaInterfaces": ["org.openmetadata.schema.EntityInterface"],
+  "properties": {
+    "id": {
+      "description": "Unique identifier of an asset category instance.",
+      "$ref": "../../../type/basic.json#/definitions/uuid"
+    },
+    "name": {
+      "description": "Name of the asset category.",
+      "$ref": "../../../type/basic.json#/definitions/entityName"
+    },
+    "fullyQualifiedName": {
+      "description": "FullyQualifiedName same as name.",
+      "$ref": "../../../type/basic.json#/definitions/fullyQualifiedEntityName"
+    },
+    "displayName": {
+      "description": "Display Name that identifies this asset category.",
+      "type": "string"
+    },
+    "description": {
+      "description": "Description of the asset category.",
+      "$ref": "../../../type/basic.json#/definitions/markdown"
+    },
+    "version": {
+      "description": "Metadata version of the entity.",
+      "$ref": "../../../type/entityHistory.json#/definitions/entityVersion"
+    },
+    "updatedAt": {
+      "description": "Last update time corresponding to the new version of the entity in Unix epoch time milliseconds.",
+      "$ref": "../../../type/basic.json#/definitions/timestamp"
+    },
+    "updatedBy": {
+      "description": "User who made the update.",
+      "type": "string"
+    },
+    "href": {
+      "description": "Link to the resource corresponding to this entity.",
+      "$ref": "../../../type/basic.json#/definitions/href"
+    },
+    "reviewers": {
+      "description": "User references of the reviewers for this asset category.",
+      "type": "array",
+      "items": {
+        "$ref": "../../../type/entityReference.json"
+      }
+    },
+    "owners": {
+      "description": "Owners of this asset category.",
+      "$ref": "../../../type/entityReferenceList.json"
+    },
+    "tags": {
+      "description": "Tags for this asset category.",
+      "type": "array",
+      "items": {
+        "$ref": "../../../type/tagLabel.json"
+      },
+      "default": []
+    },
+    "catalogCount": {
+      "description": "Total number of asset catalogs under this category.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "changeDescription": {
+      "description": "Change that lead to this version of the entity.",
+      "$ref": "../../../type/entityHistory.json#/definitions/changeDescription"
+    },
+    "incrementalChangeDescription": {
+      "description": "Incremental change that lead to this version of the entity.",
+      "$ref": "../../../type/entityHistory.json#/definitions/changeDescription"
+    },
+    "deleted": {
+      "description": "When `true` indicates the entity has been soft deleted.",
+      "type": "boolean",
+      "default": false
+    },
+    "provider": {
+      "$ref": "../../../type/basic.json#/definitions/providerType"
+    },
+    "domain": {
+      "description": "Domain the AssetCategory belongs to.",
+      "$ref": "../../../type/entityReference.json"
+    },
+    "dataProducts": {
+      "description": "List of data products this entity is part of.",
+      "$ref": "../../../type/entityReferenceList.json"
+    },
+    "votes": {
+      "description": "Votes on the entity.",
+      "$ref": "../../../type/votes.json"
+    },
+    "extension": {
+      "description": "Entity extension data with custom attributes added to the entity.",
+      "$ref": "../../../type/basic.json#/definitions/entityExtension"
+    }
+  },
+  "required": ["id", "name", "description"],
+  "additionalProperties": false
+}

@@ -1,0 +1,14 @@
+{
+  "summary": "AssetType CSV file is used for importing and exporting asset types.",
+  "headers": [
+    { "name": "name", "required": true, "description": "Name of the asset type.", "examples": ["`CustomerDataAsset`, `TableAsset`"] },
+    { "name": "displayName", "required": false, "description": "Display name for the asset type.", "examples": ["`客户数据资产`, `表资产`"] },
+    { "name": "description", "required": false, "description": "Description of the asset type in Markdown format.", "examples": ["`Customer data asset type`"] },
+    { "name": "attributes", "required": false, "description": "Fully qualified AssetAttribute names separated by ';'.", "examples": ["`dataFormat;sensitivity;owner`"] },
+    { "name": "tags", "required": false, "description": "Fully qualified classification tag names separated by ';'.", "examples": ["`PII.Sensitive`"] },
+    { "name": "reviewers", "required": false, "description": "User names separated by ';'.", "examples": ["`john;adam`"] },
+    { "name": "owner", "required": false, "description": "Owner names separated by ';'.", "examples": ["`user;john`"] },
+    { "name": "domain", "required": false, "description": "Fully qualified domain name.", "examples": ["`Sales`"] },
+    { "name": "extension", "required": false, "description": "Custom extension properties.", "examples": ["`customAttribute:value`"] }
+  ]
+}

@@ -86,6 +86,11 @@ import org.openmetadata.schema.entity.classification.Classification;
 import org.openmetadata.schema.entity.classification.Tag;
 import org.openmetadata.schema.entity.data.APICollection;
 import org.openmetadata.schema.entity.data.APIEndpoint;
+import org.openmetadata.schema.entity.data.asset.AssetAttribute;
+import org.openmetadata.schema.entity.data.asset.AssetCatalog;
+import org.openmetadata.schema.entity.data.asset.AssetCategory;
+import org.openmetadata.schema.entity.data.asset.AssetType;
+import org.openmetadata.schema.entity.data.asset.DataAsset;
 import org.openmetadata.schema.entity.data.Chart;
 import org.openmetadata.schema.entity.data.Container;
 import org.openmetadata.schema.entity.data.Dashboard;
@@ -385,6 +390,23 @@ public interface CollectionDAO {
 
   @CreateSqlObject
   WorkflowInstanceStateTimeSeriesDAO workflowInstanceStateTimeSeriesDAO();
+
+  // ==================== 数据资产模块 DAO ====================
+
+  @CreateSqlObject
+  AssetCategoryDAO assetCategoryDAO();
+
+  @CreateSqlObject
+  AssetCatalogDAO assetCatalogDAO();
+
+  @CreateSqlObject
+  AssetAttributeDAO assetAttributeDAO();
+
+  @CreateSqlObject
+  AssetTypeDAO assetTypeDAO();
+
+  @CreateSqlObject
+  DataAssetDAO dataAssetDAO();
 
   interface DashboardDAO extends EntityDAO<Dashboard> {
     @Override
@@ -6355,5 +6377,92 @@ public interface CollectionDAO {
                 + "WHERE workflowInstanceId = :workflowInstanceId AND stage = :stage ORDER BY timestamp DESC")
     List<String> listWorkflowInstanceStateForStage(
         @Bind("workflowInstanceId") String workflowInstanceId, @Bind("stage") String stage);
+  }
+
+  // ==================== 数据资产模块 DAO 接口 ====================
+
+  interface AssetCategoryDAO extends EntityDAO<AssetCategory> {
+    @Override
+    default String getTableName() {
+      return "asset_category_entity";
+    }
+
+    @Override
+    default Class<AssetCategory> getEntityClass() {
+      return AssetCategory.class;
+    }
+
+    @Override
+    default String getNameHashColumn() {
+      return "fqnHash";
+    }
+  }
+
+  interface AssetCatalogDAO extends EntityDAO<AssetCatalog> {
+    @Override
+    default String getTableName() {
+      return "asset_catalog_entity";
+    }
+
+    @Override
+    default Class<AssetCatalog> getEntityClass() {
+      return AssetCatalog.class;
+    }
+
+    @Override
+    default String getNameHashColumn() {
+      return "fqnHash";
+    }
+  }
+
+  interface AssetAttributeDAO extends EntityDAO<AssetAttribute> {
+    @Override
+    default String getTableName() {
+      return "asset_attribute_entity";
+    }
+
+    @Override
+    default Class<AssetAttribute> getEntityClass() {
+      return AssetAttribute.class;
+    }
+
+    @Override
+    default String getNameHashColumn() {
+      return "fqnHash";
+    }
+  }
+
+  interface AssetTypeDAO extends EntityDAO<AssetType> {
+    @Override
+    default String getTableName() {
+      return "asset_type_entity";
+    }
+
+    @Override
+    default Class<AssetType> getEntityClass() {
+      return AssetType.class;
+    }
+
+    @Override
+    default String getNameHashColumn() {
+      return "fqnHash";
+    }
+  }
+
+  interface DataAssetDAO extends EntityDAO<DataAsset> {
+    @Override
+    default String getTableName() {
+      return "data_asset_entity";
+    }
+
+    @Override
+    default Class<DataAsset> getEntityClass() {
+      return DataAsset.class;
+    }
+
+    @Override
+    default String getNameHashColumn() {
+      return "fqnHash";
+    }
   }
 }
