@@ -185,5 +185,27 @@ public class AssetTypeRepository extends EntityRepository<AssetType> {
     public AssetTypeUpdater(AssetType original, AssetType updated, Operation operation) {
       super(original, updated, operation);
     }
+
+    @Override
+    public void entitySpecificUpdate(boolean consolidatingChanges) {
+      updateAttributes(original, updated);
+    }
+
+    private void updateAttributes(AssetType original, AssetType updated) {
+      List<EntityReference> origAttributes = 
+          original.getAttributes() == null ? java.util.Collections.emptyList() : original.getAttributes();
+      List<EntityReference> updatedAttributes = 
+          updated.getAttributes() == null ? java.util.Collections.emptyList() : updated.getAttributes();
+
+      updateToRelationships(
+          "attributes",
+          ASSET_TYPE,
+          original.getId(),
+          Relationship.HAS,
+          ASSET_ATTRIBUTE,
+          origAttributes,
+          updatedAttributes,
+          false);
+    }
   }
 }
