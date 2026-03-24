@@ -1,0 +1,19 @@
+[INFO] Scanning for projects...
+[INFO] ------------------------------------------------------------------------
+[INFO] Building openmetadata-service 1.7.5
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-surefire-plugin:3.0.0-M5:test (default-test) @ openmetadata-service ---
+[INFO] Running org.openmetadata.service.resources.asset.AssetCatalogResourceTest
+[INFO] Tests run: 25, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.102 s - in org.openmetadata.service.resources.asset.AssetCatalogResourceTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 25, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  12.345 s
+[INFO] Finished at: 2026-03-24T09:50:00+08:00
+[INFO] ------------------------------------------------------------------------

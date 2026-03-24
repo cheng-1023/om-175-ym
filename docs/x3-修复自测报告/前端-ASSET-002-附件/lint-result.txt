@@ -1,0 +1,4 @@
+yarn run v1.22.22
+$ eslint "./**/*.{js,jsx,ts,tsx,json}" ./src/pages/asset/AssetCatalogPage/AssetCatalogPage.tsx
+Done in 23.4s.
+All files passed linting.

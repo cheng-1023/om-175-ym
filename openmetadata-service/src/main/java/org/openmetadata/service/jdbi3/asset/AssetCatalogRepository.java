@@ -81,18 +81,43 @@ public class AssetCatalogRepository extends EntityRepository<AssetCatalog> {
 
   @Override
   public void prepare(AssetCatalog catalog, boolean update) {
+    // 校验 category 并将其转换为完整的 EntityReference
+    if (catalog.getCategory() != null) {
+      org.openmetadata.schema.entity.data.asset.AssetCategory category = 
+          Entity.getEntity(catalog.getCategory(), "", Include.NON_DELETED);
+      catalog.setCategory(category.getEntityReference());
+    }
+
+    AssetCatalog parentCatalog = null;
+    // 校验 parent 并将其转换为完整的 EntityReference
+    if (catalog.getParent() != null) {
+      parentCatalog = Entity.getEntity(catalog.getParent(), "", Include.NON_DELETED);
+      catalog.setParent(parentCatalog.getEntityReference());
+    }
+
     if (update) {
       // 更新时 level 不允许修改
       catalog.setLevel(null);
     } else {
       // 新建时自动计算 level
-      if (catalog.getParent() == null) {
+      if (parentCatalog == null) {
         catalog.setLevel(1);
       } else {
-        AssetCatalog parent =
-            findByName(catalog.getParent().getFullyQualifiedName(), Include.NON_DELETED);
-        catalog.setLevel(parent.getLevel() + 1);
+        catalog.setLevel(parentCatalog.getLevel() + 1);
       }
+    }
+  }
+
+  @Override
+  public void setFullyQualifiedName(AssetCatalog catalog) {
+    if (catalog.getParent() != null) {
+      catalog.setFullyQualifiedName(
+          org.openmetadata.service.util.FullyQualifiedName.add(catalog.getParent().getFullyQualifiedName(), catalog.getName()));
+    } else if (catalog.getCategory() != null) {
+      catalog.setFullyQualifiedName(
+          org.openmetadata.service.util.FullyQualifiedName.add(catalog.getCategory().getFullyQualifiedName(), catalog.getName()));
+    } else {
+      catalog.setFullyQualifiedName(catalog.getName());
     }
   }
 
