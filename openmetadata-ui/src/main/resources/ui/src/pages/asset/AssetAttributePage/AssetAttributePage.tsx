@@ -195,10 +195,11 @@ const AssetAttributePage: React.FC = () => {
           await deleteAssetAttributeByName(record.name, false, true);
           await fetchAssetAttributes();
           message.success(t('message.entity-deleted-successfully'));
-        } catch (error) {
+        } catch (error: any) {
           // eslint-disable-next-line no-console
           console.error('Delete failed:', error);
-          message.error(t('message.delete-failed'));
+          const errMsg = error.response?.data?.message || t('message.delete-failed');
+          message.error(errMsg);
         }
       },
     });
@@ -240,10 +241,11 @@ const AssetAttributePage: React.FC = () => {
       setIsModalVisible(false);
       form.resetFields();
       await fetchAssetAttributes();
-    } catch (error) {
+    } catch (error: any) {
       // eslint-disable-next-line no-console
       console.error('Submit failed:', error);
-      message.error(t('message.submit-failed'));
+      const errMsg = error.response?.data?.message || t('message.submit-failed');
+      message.error(errMsg);
     } finally {
       setIsSubmitting(false);
     }

@@ -15,7 +15,7 @@ import { AxiosError } from 'axios';
 import { compare } from 'fast-json-patch';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useHistory } from 'react-router-dom';
+import { useHistory, useParams } from 'react-router-dom';
 import { ItemType } from 'antd/lib/menu/hooks/useItems';
 import { Menu } from 'antd';
 import {
@@ -52,6 +52,7 @@ import PageLayoutV1 from '../../../components/PageLayoutV1/PageLayoutV1';
 import { useEntityExportModalProvider } from '../../../components/Entity/EntityExportModalProvider/EntityExportModalProvider.component';
 import { ERROR_PLACEHOLDER_TYPE } from '../../../enums/common.enum';
 import { ExportTypes } from '../../../constants/Export.constants';
+import { PLACEHOLDER_ROUTE_FQN, ROUTES } from '../../../constants/constants';
 import {
   createAssetType,
   deleteAssetTypeByName,
@@ -77,6 +78,7 @@ interface AssetTypeFormData {
 const AssetTypePage: React.FC = () => {
   const { t } = useTranslation();
   const history = useHistory();
+  const { fqn: routeFqn } = useParams<{ fqn?: string }>();
   const { showModal } = useEntityExportModalProvider();
 
   // 数据加载状态
@@ -129,16 +131,15 @@ const AssetTypePage: React.FC = () => {
       const typesData = response.data || [];
       setAssetTypes(typesData);
 
-      // 默认选中第一个类型
-      if (typesData.length > 0 && !selectedType) {
-        setSelectedType(typesData[0]);
-      }
+      return typesData;
     } catch (err) {
       setTypesError(err as AxiosError);
+
+      return [];
     } finally {
       setIsLoadingTypes(false);
     }
-  }, [selectedType]);
+  }, []);
 
   // 获取所有资产属性（用于显示）
   const fetchAllAttributes = useCallback(async () => {
@@ -154,15 +155,58 @@ const AssetTypePage: React.FC = () => {
     }
   }, []);
 
+  // 初始化加载：获取数据后根据 URL 参数或默认逻辑匹配选中
   useEffect(() => {
-    fetchAssetTypes();
-    fetchAllAttributes();
-  }, [fetchAssetTypes, fetchAllAttributes]);
+    const initLoad = async () => {
+      const [loadedTypes] = await Promise.all([
+        fetchAssetTypes(),
+        fetchAllAttributes(),
+      ]);
 
-  // 处理类型选择
-  const handleTypeClick = useCallback((type: AssetType) => {
-    setSelectedType(type);
-  }, []);
+      if (loadedTypes.length === 0) {
+        return;
+      }
+
+      if (routeFqn) {
+        const decodedFqn = decodeURIComponent(routeFqn);
+        const matchedType = loadedTypes.find(
+          (t: AssetType) =>
+            t.fullyQualifiedName === decodedFqn || t.name === decodedFqn
+        );
+        if (matchedType) {
+          setSelectedType(matchedType);
+
+          return;
+        }
+      }
+
+      // 没有 routeFqn 或匹配不到：默认选中第一个类型并更新 URL
+      const firstType = loadedTypes[0];
+      setSelectedType(firstType);
+      history.replace(
+        ROUTES.ASSET_TYPE_DETAILS.replace(
+          PLACEHOLDER_ROUTE_FQN,
+          encodeURIComponent(firstType.fullyQualifiedName || firstType.name)
+        )
+      );
+    };
+
+    initLoad();
+  }, [routeFqn]); // 仅在 routeFqn 变化时重新初始化
+
+  // 处理类型选择（更新 URL）
+  const handleTypeClick = useCallback(
+    (type: AssetType) => {
+      setSelectedType(type);
+      history.push(
+        ROUTES.ASSET_TYPE_DETAILS.replace(
+          PLACEHOLDER_ROUTE_FQN,
+          encodeURIComponent(type.fullyQualifiedName || type.name)
+        )
+      );
+    },
+    [history]
+  );
 
   // 添加资产类型
   const handleAddType = () => {
@@ -203,10 +247,12 @@ const AssetTypePage: React.FC = () => {
           await deleteAssetTypeByName(type.name, false, true);
           await fetchAssetTypes();
           message.success(t('message.entity-deleted-successfully'));
-        } catch (error) {
+        } catch (error: any) {
           // eslint-disable-next-line no-console
           console.error('Delete failed:', error);
-          message.error(t('message.delete-failed'));
+          const errMsg =
+            error.response?.data?.message || t('message.delete-failed');
+          message.error(errMsg);
         }
       },
     });
@@ -245,10 +291,12 @@ const AssetTypePage: React.FC = () => {
 
       setIsTypeModalVisible(false);
       await fetchAssetTypes();
-    } catch (error) {
+    } catch (error: any) {
       // eslint-disable-next-line no-console
       console.error('Submit failed:', error);
-      message.error(t('message.submit-failed'));
+      const errMsg =
+        error.response?.data?.message || t('message.submit-failed');
+      message.error(errMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -293,10 +341,12 @@ const AssetTypePage: React.FC = () => {
         setIsAddAttributeModalVisible(false);
         setSelectedAttributeToAdd([]);
       }
-    } catch (error) {
+    } catch (error: any) {
       // eslint-disable-next-line no-console
       console.error('Add attribute failed:', error);
-      message.error(t('message.entity-update-failed'));
+      const errMsg =
+        error.response?.data?.message || t('message.entity-update-failed');
+      message.error(errMsg);
     } finally {
       setIsAddingAttribute(false);
     }
@@ -405,7 +455,18 @@ const AssetTypePage: React.FC = () => {
               width: 200,
               render: (text: string, record: AssetAttribute) => (
                 <Space direction="vertical" size={0}>
-                  <div className="font-bold text-blue-600 cursor-pointer hover:text-blue-800">
+                  <div
+                    className="font-bold text-blue-600 cursor-pointer hover:text-blue-800"
+                    onClick={() => {
+                      history.push(
+                        ROUTES.ASSET_ATTRIBUTE_DETAILS.replace(
+                          PLACEHOLDER_ROUTE_FQN,
+                          encodeURIComponent(
+                            record.fullyQualifiedName || record.name
+                          )
+                        )
+                      );
+                    }}>
                     {record.displayName || text}
                   </div>
                   <div className="text-xs text-grey-muted">{text}</div>

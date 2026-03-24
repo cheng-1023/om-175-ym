@@ -94,52 +94,98 @@ const AssetOverviewPage: React.FC = () => {
     try {
       const [categoriesResponse, catalogsResponse] = await Promise.all([
         getAssetCategoriesList({ limit: 100 }),
-        getAssetCatalogsList({ limit: 1000 }),
+        getAssetCatalogsList({
+          fields: 'category,parent,fullyQualifiedName',
+          limit: 1000,
+        }),
       ]);
 
       const categories = categoriesResponse.data || [];
       const catalogs = catalogsResponse.data || [];
 
-      // 构建树形结构
-      const nodes: TreeNode[] = categories.map((category: AssetCategory) => ({
-        title: (
-          <Space>
-            <span className="font-semibold">
-              {category.displayName || category.name}
-            </span>
-            <Badge
-              count={category.catalogCount || 0}
-              style={{ backgroundColor: '#52c41a' }}
-            />
-          </Space>
-        ),
-        key: `category-${category.id}`,
-        icon: <CatalogIcon style={{ width: '16px', height: '16px' }} />,
-        type: 'category',
-        data: category,
-        isLeaf: false,
-        children: catalogs
-          .filter(
-            (catalog: AssetCatalog) => catalog.category?.id === category.id
-          )
-          .map((catalog: AssetCatalog) => ({
-            title: (
-              <Space>
-                <span>{catalog.displayName || catalog.name}</span>
-                {catalog.assetCount !== undefined && (
-                  <Badge
-                    count={catalog.assetCount}
-                    style={{ backgroundColor: '#1890ff' }}
-                  />
-                )}
-              </Space>
-            ),
-            key: `catalog-${catalog.id}`,
-            type: 'catalog',
-            data: catalog,
-            isLeaf: true,
-          })),
-      }));
+      // 构建树形结构：递归构建目录子节点
+      const buildCatalogNodes = (
+        parentId: string,
+        allCatalogs: AssetCatalog[]
+      ): TreeNode[] => {
+        return allCatalogs
+          .filter((c) => c.parent?.id === parentId)
+          .map((catalog) => {
+            const childNodes = buildCatalogNodes(catalog.id ?? '', allCatalogs);
+
+            return {
+              title: (
+                <Space>
+                  <span>{catalog.displayName || catalog.name}</span>
+                  {catalog.assetCount !== undefined && (
+                    <Badge
+                      count={catalog.assetCount}
+                      style={{ backgroundColor: '#1890ff' }}
+                    />
+                  )}
+                </Space>
+              ),
+              key: `catalog-${catalog.id}`,
+              type: 'catalog' as const,
+              data: catalog,
+              isLeaf: childNodes.length === 0,
+              children: childNodes.length > 0 ? childNodes : undefined,
+            };
+          });
+      };
+
+      const nodes: TreeNode[] = categories.map((category: AssetCategory) => {
+        // 找出该分类下没有 parent 的一级目录节点
+        const topLevelCatalogs = catalogs.filter(
+          (c: AssetCatalog) => c.category?.id === category.id && !c.parent
+        );
+
+        // 为每个一级目录递归构建子节点
+        const catalogChildren: TreeNode[] = topLevelCatalogs.map(
+          (catalog: AssetCatalog) => {
+            const childNodes = buildCatalogNodes(catalog.id ?? '', catalogs);
+
+            return {
+              title: (
+                <Space>
+                  <span>{catalog.displayName || catalog.name}</span>
+                  {catalog.assetCount !== undefined && (
+                    <Badge
+                      count={catalog.assetCount}
+                      style={{ backgroundColor: '#1890ff' }}
+                    />
+                  )}
+                </Space>
+              ),
+              key: `catalog-${catalog.id}`,
+              type: 'catalog' as const,
+              data: catalog,
+              isLeaf: childNodes.length === 0,
+              children: childNodes.length > 0 ? childNodes : undefined,
+            };
+          }
+        );
+
+        return {
+          title: (
+            <Space>
+              <span className="font-semibold">
+                {category.displayName || category.name}
+              </span>
+              <Badge
+                count={category.catalogCount || 0}
+                style={{ backgroundColor: '#52c41a' }}
+              />
+            </Space>
+          ),
+          key: `category-${category.id}`,
+          icon: <CatalogIcon style={{ width: '16px', height: '16px' }} />,
+          type: 'category',
+          data: category,
+          isLeaf: catalogChildren.length === 0,
+          children: catalogChildren,
+        };
+      });
 
       setTreeData(nodes);
     } catch (err) {

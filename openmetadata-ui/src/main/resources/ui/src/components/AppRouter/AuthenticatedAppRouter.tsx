@@ -577,6 +577,11 @@ const AuthenticatedAppRouter: FunctionComponent = () => {
         component={AssetCategoryPage}
         path={ROUTES.ASSET_CATEGORIES}
       />
+      <Route
+        exact
+        component={AssetCatalogPage}
+        path={ROUTES.ASSET_CATALOG_DETAILS}
+      />
       <Route exact component={AssetCatalogPage} path={ROUTES.ASSET_CATALOGS} />
       <Route
         exact
@@ -588,8 +593,20 @@ const AuthenticatedAppRouter: FunctionComponent = () => {
         component={AssetAttributePage}
         path={ROUTES.ASSET_ATTRIBUTES}
       />
+      <Route
+        exact
+        component={AssetTypePage}
+        path={ROUTES.ASSET_TYPE_DETAILS}
+      />
       <Route exact component={AssetTypePage} path={ROUTES.ASSET_TYPES} />
-      <Route exact component={DataAssetPage} path={ROUTES.DATA_ASSETS} />
+      <Route
+        exact
+        component={DataAssetPage}
+        path={[
+          ROUTES.DATA_ASSETS,
+          ROUTES.DATA_ASSET_DETAILS,
+        ]}
+      />
 
       <Route
         component={EntityRouter}

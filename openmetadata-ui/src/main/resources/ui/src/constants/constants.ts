@@ -290,12 +290,15 @@ export const ROUTES = {
   // Data Assets
   ASSETS: '/assets',
   ASSET_CATEGORIES: '/assets/categories',
-  ASSET_CATALOGS: '/assets/catalogs',
+  ASSET_CATALOGS: '/assetCatalog',
+  ASSET_CATALOG_DETAILS: `/assetCatalog/${PLACEHOLDER_ROUTE_FQN}`,
   ASSET_ATTRIBUTES: '/assets/attributes',
-  ASSET_ATTRIBUTE_DETAILS: `/assets/attributes/${PLACEHOLDER_ROUTE_FQN}`,
+  ASSET_ATTRIBUTE_DETAILS: `/assetAttribute/${PLACEHOLDER_ROUTE_FQN}`,
   ASSET_TYPES: '/assets/types',
+  ASSET_TYPE_DETAILS: `/assetType/${PLACEHOLDER_ROUTE_FQN}`,
   ASSET_OVERVIEW: '/assets/overview',
   DATA_ASSETS: '/assets/data',
+  DATA_ASSET_DETAILS: `/dataAsset/${PLACEHOLDER_ROUTE_FQN}`,
 
   // Entity Import
   ENTITY_IMPORT: `/bulk/import/${PLACEHOLDER_ROUTE_ENTITY_TYPE}/${PLACEHOLDER_ROUTE_FQN}`,

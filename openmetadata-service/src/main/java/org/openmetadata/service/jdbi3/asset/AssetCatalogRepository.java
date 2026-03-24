@@ -67,6 +67,10 @@ public class AssetCatalogRepository extends EntityRepository<AssetCatalog> {
 
   @Override
   public void setFields(AssetCatalog catalog, Fields fields) {
+    catalog.setCategory(
+        fields.contains("category") ? getCategory(catalog) : catalog.getCategory());
+    catalog.setParent(
+        fields.contains("parent") ? getCatalogParent(catalog) : catalog.getParent());
     catalog.withChildren(
         fields.contains("children") ? getChildren(catalog) : catalog.getChildren());
     catalog.setAssetCount(
@@ -75,6 +79,8 @@ public class AssetCatalogRepository extends EntityRepository<AssetCatalog> {
 
   @Override
   public void clearFields(AssetCatalog catalog, Fields fields) {
+    catalog.setCategory(fields.contains("category") ? catalog.getCategory() : null);
+    catalog.setParent(fields.contains("parent") ? catalog.getParent() : null);
     catalog.withChildren(fields.contains("children") ? catalog.getChildren() : null);
     catalog.setAssetCount(fields.contains("assetCount") ? catalog.getAssetCount() : null);
   }
@@ -123,12 +129,15 @@ public class AssetCatalogRepository extends EntityRepository<AssetCatalog> {
 
   @Override
   public void storeEntity(AssetCatalog catalog, boolean update) {
-    // 存储前清除 category 引用字段，避免冗余序列化到 JSON（关系通过关系表管理）
+    // 存储前清除引用字段，避免冗余序列化到 JSON（关系通过关系表管理）
     EntityReference category = catalog.getCategory();
+    EntityReference parent = catalog.getParent();
     catalog.setCategory(null);
+    catalog.setParent(null);
     store(catalog, update);
-    // 恢复 category 字段，供后续 storeRelationships() 使用
+    // 恢复引用字段，供后续 storeRelationships() 使用
     catalog.setCategory(category);
+    catalog.setParent(parent);
   }
 
   @Override
@@ -178,6 +187,18 @@ public class AssetCatalogRepository extends EntityRepository<AssetCatalog> {
               "资产目录 [%s] 下包含 %d 个数据资产，无法删除。请先删除或移动所有数据资产。",
               catalog.getFullyQualifiedName(), assetCount));
     }
+  }
+
+  /** 从关系表恢复 catalog 所属的 AssetCategory（AssetCategory HAS AssetCatalog） */
+  private EntityReference getCategory(AssetCatalog catalog) {
+    return getFromEntityRef(
+        catalog.getId(), ASSET_CATALOG, Relationship.HAS, Entity.ASSET_CATEGORY, false);
+  }
+
+  /** 从关系表恢复 catalog 的父 Catalog（parent CONTAINS child） */
+  private EntityReference getCatalogParent(AssetCatalog catalog) {
+    return getFromEntityRef(
+        catalog.getId(), ASSET_CATALOG, Relationship.CONTAINS, ASSET_CATALOG, false);
   }
 
   protected List<EntityReference> getChildren(AssetCatalog catalog) {

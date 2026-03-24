@@ -14,16 +14,20 @@
 import { AxiosError } from 'axios';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ItemType } from 'antd/lib/menu/hooks/useItems';
+
 import {
   Button,
   Card,
+  Col,
+  Descriptions,
   Dropdown,
   Form,
   Input,
   Menu,
   message,
   Modal,
+  Row,
+  Select,
   Space,
   Table,
   Tabs,
@@ -40,8 +44,13 @@ import { ReactComponent as ExportIcon } from '../../../assets/svg/ic-export.svg'
 import { ReactComponent as ImportIcon } from '../../../assets/svg/ic-import.svg';
 import { ReactComponent as VersionIcon } from '../../../assets/svg/ic-version.svg';
 import { ReactComponent as IconDropdown } from '../../../assets/svg/menu.svg';
-import Icon, { LikeOutlined, DislikeOutlined } from '@ant-design/icons';
+import Icon, {
+  LikeOutlined,
+  DislikeOutlined,
+  DownOutlined,
+} from '@ant-design/icons';
 import { ManageButtonItemLabel } from '../../../components/common/ManageButtonContentItem/ManageButtonContentItem.component';
+import TabsLabel from '../../../components/common/TabsLabel/TabsLabel.component';
 import ButtonGroup from 'antd/lib/button/button-group';
 import ErrorPlaceHolder from '../../../components/common/ErrorWithPlaceholder/ErrorPlaceHolder';
 import Loader from '../../../components/common/Loader/Loader';
@@ -107,12 +116,25 @@ const AssetCatalogPage: React.FC = () => {
     useState<AssetCategory | null>(null);
   const [isCategorySubmitting, setIsCategorySubmitting] = useState(false);
 
+  // 详情页状态
+  const [activeTab, setActiveTab] = useState('overview');
+
+  // 移动资产目录状态
+  const [isMoveModalVisible, setIsMoveModalVisible] = useState(false);
+  const [moveCatalogTarget, setMoveCatalogTarget] = useState<string | null>(
+    null
+  );
+  const [isMoveSubmitting, setIsMoveSubmitting] = useState(false);
+
   // 获取资产分类列表
   const fetchCategories = useCallback(async () => {
     setIsLoadingCategories(true);
     setCategoriesError(null);
     try {
-      const response = await getAssetCategoriesList({ limit: 100 });
+      const response = await getAssetCategoriesList({
+        fields: 'fullyQualifiedName',
+        limit: 100,
+      });
       const categoriesData = response.data || [];
       setCategories(categoriesData);
 
@@ -127,46 +149,80 @@ const AssetCatalogPage: React.FC = () => {
     }
   }, [selectedCategory]);
 
-  // 获取选中分类的资产目录列表
+  // 获取选中分类或所有目录数据
   const fetchCatalogs = useCallback(async () => {
-    if (!selectedCategory) {
-      return;
-    }
-
     setIsLoadingCatalogs(true);
     setCatalogsError(null);
     try {
       const response = await getAssetCatalogsList({
-        fields: 'category',
+        fields: 'category,parent,fullyQualifiedName',
         limit: 1000,
       });
-      const allCatalogs = response.data || [];
-
-      // 筛选出属于当前分类的目录
-      const filteredCatalogs = allCatalogs.filter(
-        (catalog) => catalog.category?.id === selectedCategory.id
-      );
-
-      setCatalogs(filteredCatalogs);
+      setCatalogs(response.data || []);
     } catch (err) {
       setCatalogsError(err as AxiosError);
     } finally {
       setIsLoadingCatalogs(false);
     }
-  }, [selectedCategory]);
+  }, []);
 
   useEffect(() => {
     fetchCategories();
-  }, [fetchCategories]);
-
-  useEffect(() => {
     fetchCatalogs();
-  }, [fetchCatalogs]);
+  }, [fetchCategories, fetchCatalogs]);
 
   // 处理分类选择
-  const handleCategoryClick = useCallback((category: AssetCategory) => {
-    setSelectedCategory(category);
-  }, []);
+  const handleCategorySelect = (info: { key: string }) => {
+    const category = categories.find((c) => c.id === info.key);
+    if (category) {
+      setSelectedCategory(category);
+      setSelectedCatalog(null);
+    }
+  };
+
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [entityToDelete, setEntityToDelete] = useState<{
+    type: 'category' | 'catalog';
+    data: any;
+  } | null>(null);
+
+  const triggerDelete = (type: 'category' | 'catalog', data: any) => {
+    setEntityToDelete({ type, data });
+    setDeleteConfirmText('');
+    setDeleteConfirmVisible(true);
+  };
+
+  const executeDelete = async () => {
+    if (!entityToDelete) {
+      return;
+    }
+    const { type, data } = entityToDelete;
+    try {
+      if (type === 'category') {
+        await deleteAssetCategoryByName(data.name, false, true);
+        await fetchCategories();
+        setSelectedCategory(null);
+      } else {
+        await deleteAssetCatalogByName(data.name, false, true);
+        await fetchCatalogs();
+        setSelectedCatalog(null);
+      }
+      message.success(
+        t('message.entity-deleted-successfully', {
+          entity: data.displayName || data.name,
+        })
+      );
+    } catch (error: any) {
+      console.error('Delete failed:', error);
+      const errMsg =
+        error.response?.data?.message || t('message.delete-failed');
+      message.error(errMsg);
+    } finally {
+      setDeleteConfirmVisible(false);
+      setEntityToDelete(null);
+    }
+  };
 
   // 添加资产目录
   const handleAddCatalog = () => {
@@ -190,35 +246,7 @@ const AssetCatalogPage: React.FC = () => {
 
   // 删除资产目录
   const handleDeleteCatalog = (catalog: AssetCatalog) => {
-    Modal.confirm({
-      title: t('label.delete-entity', { entity: t('label.asset-catalog') }),
-      content: t('message.delete-confirmation', {
-        entity: catalog.displayName || catalog.name,
-      }),
-      okText: t('label.delete'),
-      okType: 'danger',
-      cancelText: t('label.cancel'),
-      onOk: async () => {
-        try {
-          await deleteAssetCatalogByName(catalog.name, false, true);
-          await fetchCatalogs();
-          message.success(
-            t('message.entity-deleted-successfully', {
-              entity: catalog.displayName || catalog.name,
-            })
-          );
-        } catch (error: any) {
-          // eslint-disable-next-line no-console
-          console.error('Delete failed:', error);
-          const errMsg = error.response?.data?.message;
-          if (error.response?.status === 400 && errMsg) {
-            message.error(errMsg);
-          } else {
-            message.error(t('message.delete-failed'));
-          }
-        }
-      },
-    });
+    triggerDelete('catalog', catalog);
   };
 
   // 提交资产目录表单
@@ -228,12 +256,22 @@ const AssetCatalogPage: React.FC = () => {
       setIsSubmitting(true);
 
       if (catalogModalMode === 'create') {
-        await createAssetCatalog({
+        const payload: any = {
           name: values.name,
           displayName: values.displayName,
           description: values.description,
-          category: selectedCategory?.id || '',
-        });
+          category:
+            selectedCategory?.fullyQualifiedName ||
+            selectedCategory?.name ||
+            '',
+        };
+        // 如果当前选中了一个 Catalog，则新建的当做它的子分类
+        if (selectedCatalog?.fullyQualifiedName || selectedCatalog?.name) {
+          payload.parent =
+            selectedCatalog.fullyQualifiedName || selectedCatalog.name;
+        }
+
+        await createAssetCatalog(payload);
         message.success(
           t('message.entity-created-successfully', {
             entity: values.displayName || values.name,
@@ -268,12 +306,66 @@ const AssetCatalogPage: React.FC = () => {
       setIsCatalogModalVisible(false);
       form.resetFields();
       await fetchCatalogs();
-    } catch (error) {
+    } catch (error: any) {
       // eslint-disable-next-line no-console
       console.error('Submit failed:', error);
-      message.error(t('message.submit-failed'));
+      const currentValues = form.getFieldsValue();
+      const statusCode = error.response?.status;
+      let errMsg = error.response?.data?.message || t('message.submit-failed');
+
+      if (statusCode === 409) {
+        errMsg =
+          t('message.entity-already-exists', {
+            entity: currentValues.displayName || currentValues.name,
+          }) || errMsg;
+      } else if (statusCode === 400) {
+        errMsg = error.response?.data?.message || '校验失败，请检查填写内容';
+      }
+
+      message.error(errMsg);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // 更改父级目录
+  const handleMoveCatalogSubmit = async () => {
+    if (!selectedCatalog) {
+      return;
+    }
+    try {
+      setIsMoveSubmitting(true);
+      // parent字段如果在根下面可以设置为null，在其他目录下面设置为对象的引用
+      // TODO: OpenMetadata 后端 API 可以支持 JSON Patch 修改 parent（如果支持），实际需依赖确切后端逻辑，这里暂以最常见 patch 方式处理
+      const patch: Operation[] = [
+        {
+          op: moveCatalogTarget
+            ? selectedCatalog.parent
+              ? 'replace'
+              : 'add'
+            : 'remove',
+          path: '/parent',
+          value: moveCatalogTarget
+            ? { id: moveCatalogTarget, type: 'assetCatalog' }
+            : null,
+        },
+      ];
+      await patchAssetCatalogByName(selectedCatalog.name, patch);
+      message.success(
+        t('message.entity-updated-successfully', {
+          entity: selectedCatalog.displayName || selectedCatalog.name,
+        })
+      );
+      setIsMoveModalVisible(false);
+      setMoveCatalogTarget(null);
+      await fetchCatalogs();
+    } catch (error: any) {
+      console.error('Move failed:', error);
+      message.error(
+        error.response?.data?.message || t('message.submit-failed')
+      );
+    } finally {
+      setIsMoveSubmitting(false);
     }
   };
 
@@ -302,40 +394,9 @@ const AssetCatalogPage: React.FC = () => {
 
   // 删除资产分类
   const handleDeleteCategory = () => {
-    if (!selectedCategory) {
-      return;
+    if (selectedCategory) {
+      triggerDelete('category', selectedCategory);
     }
-
-    Modal.confirm({
-      title: t('label.delete-entity', { entity: t('label.asset-category') }),
-      content: t('message.delete-confirmation', {
-        entity: selectedCategory.displayName || selectedCategory.name,
-      }),
-      okText: t('label.delete'),
-      okType: 'danger',
-      cancelText: t('label.cancel'),
-      onOk: async () => {
-        try {
-          await deleteAssetCategoryByName(selectedCategory.name, false, true);
-          await fetchCategories();
-          setSelectedCategory(null);
-          message.success(
-            t('message.entity-deleted-successfully', {
-              entity: selectedCategory.displayName || selectedCategory.name,
-            })
-          );
-        } catch (error: any) {
-          // eslint-disable-next-line no-console
-          console.error('Delete category failed:', error);
-          const errMsg = error.response?.data?.message;
-          if (error.response?.status === 400 && errMsg) {
-            message.error(errMsg);
-          } else {
-            message.error(t('message.delete-failed'));
-          }
-        }
-      },
-    });
   };
 
   // 提交资产分类表单
@@ -384,10 +445,12 @@ const AssetCatalogPage: React.FC = () => {
       setIsCategoryModalVisible(false);
       categoryForm.resetFields();
       await fetchCategories();
-    } catch (error) {
+    } catch (error: any) {
       // eslint-disable-next-line no-console
       console.error('Category submit failed:', error);
-      message.error(t('message.submit-failed'));
+      const errMsg =
+        error.response?.data?.message || t('message.submit-failed');
+      message.error(errMsg);
     } finally {
       setIsCategorySubmitting(false);
     }
@@ -409,16 +472,14 @@ const AssetCatalogPage: React.FC = () => {
     message.info(t('message.feature-coming-soon'));
   }, []);
 
-  // 左侧面板菜单项
-  const menuItems: ItemType[] = useMemo(() => {
+  // 生成左侧分类菜单数据
+  const categoryMenuItems = useMemo(() => {
     return categories.map((category) => ({
-      key: category.id,
+      key: category.id || '',
       label: category.displayName || category.name,
       icon: <CatalogIcon style={{ width: '16px', height: '16px' }} />,
     }));
   }, [categories]);
-
-  const selectedMenuKey = selectedCategory?.id || categories[0]?.id || '';
 
   // 资产目录表格列定义
   const catalogColumns = [
@@ -492,6 +553,8 @@ const AssetCatalogPage: React.FC = () => {
     },
   ];
 
+  const activeNode = selectedCatalog || selectedCategory;
+
   return (
     <PageLayoutV1 pageTitle={t('label.asset-catalog-management')}>
       <ResizableLeftPanels
@@ -529,16 +592,13 @@ const AssetCatalogPage: React.FC = () => {
                 </div>
               ) : (
                 <Menu
-                  className="custom-menu"
-                  items={menuItems}
+                  className="p-t-xs"
+                  items={categoryMenuItems}
                   mode="inline"
-                  selectedKeys={[selectedMenuKey]}
-                  onClick={(item) => {
-                    const category = categories.find((c) => c.id === item.key);
-                    if (category) {
-                      handleCategoryClick(category);
-                    }
-                  }}
+                  selectedKeys={
+                    selectedCategory?.id ? [selectedCategory.id] : []
+                  }
+                  onClick={handleCategorySelect}
                 />
               )}
             </div>
@@ -550,32 +610,44 @@ const AssetCatalogPage: React.FC = () => {
           minWidth: 800,
           children: (
             <div className="p-lg">
-              {selectedCategory ? (
+              {activeNode ? (
                 <>
                   {/* 头部区域 - 对齐 GlossaryHeader 布局 */}
                   <div className="glossary-header flex gap-4 justify-between no-wrap p-b-md">
                     <div className="flex w-min-0 flex-auto">
                       <Space direction="vertical" size={0}>
                         <Title className="m-0" level={4}>
-                          {selectedCategory.displayName ||
-                            selectedCategory.name}
+                          {activeNode.displayName || activeNode.name}
                         </Title>
-                        <Text type="secondary">
-                          {selectedCategory.description}
-                        </Text>
+                        <Text type="secondary">{activeNode.description}</Text>
                       </Space>
                     </div>
                     <div className="flex items-center">
                       <div className="d-flex gap-3 justify-end">
-                        {/* 添加资产目录按钮 */}
-                        <Button
-                          className="m-l-xs"
-                          type="primary"
-                          onClick={handleAddCatalog}>
-                          {t('label.add-entity', {
-                            entity: t('label.asset-catalog'),
-                          })}
-                        </Button>
+                        {/* 添加下拉按钮 */}
+                        <Dropdown
+                          menu={{
+                            items: [
+                              {
+                                key: 'add-catalog',
+                                label: t('label.asset-catalog'),
+                                onClick: handleAddCatalog,
+                              },
+                              {
+                                key: 'add-data-asset',
+                                label: t('label.data-asset'),
+                                onClick: () =>
+                                  message.info(
+                                    t('message.feature-coming-soon')
+                                  ),
+                              },
+                            ],
+                          }}
+                          trigger={['click']}>
+                          <Button className="m-l-xs" type="primary">
+                            {t('label.add')} <DownOutlined />
+                          </Button>
+                        </Dropdown>
 
                         <ButtonGroup className="spaced" size="small">
                           {/* 点赞/点踩 - coming soon */}
@@ -659,7 +731,11 @@ const AssetCatalogPage: React.FC = () => {
                                   label: (
                                     <ManageButtonItemLabel
                                       description={t('message.rename-entity', {
-                                        entity: t('label.asset-category'),
+                                        entity: t(
+                                          selectedCatalog
+                                            ? 'label.asset-catalog'
+                                            : 'label.asset-category'
+                                        ),
                                       })}
                                       icon={EditIcon}
                                       id="rename-button"
@@ -669,16 +745,57 @@ const AssetCatalogPage: React.FC = () => {
                                   key: 'rename-button',
                                   onClick: (e) => {
                                     e.domEvent.stopPropagation();
-                                    handleEditCategory();
+                                    if (selectedCatalog) {
+                                      handleEditCatalog(selectedCatalog);
+                                    } else {
+                                      handleEditCategory();
+                                    }
                                   },
                                 },
+                                ...(selectedCatalog
+                                  ? [
+                                      {
+                                        label: (
+                                          <ManageButtonItemLabel
+                                            description={t(
+                                              'message.edit-entity',
+                                              {
+                                                entity: t(
+                                                  'label.parent-entity',
+                                                  {
+                                                    entity: t(
+                                                      'label.asset-catalog'
+                                                    ),
+                                                  }
+                                                ),
+                                              }
+                                            )}
+                                            icon={EditIcon}
+                                            id="move-button"
+                                            name={t('label.change-entity', {
+                                              entity: t('label.parent'),
+                                            })}
+                                          />
+                                        ),
+                                        key: 'move-button',
+                                        onClick: (e: any) => {
+                                          e.domEvent.stopPropagation();
+                                          setIsMoveModalVisible(true);
+                                        },
+                                      },
+                                    ]
+                                  : []),
                                 {
                                   label: (
                                     <ManageButtonItemLabel
                                       description={t(
                                         'message.delete-entity-type-action-description',
                                         {
-                                          entityType: t('label.asset-category'),
+                                          entityType: t(
+                                            selectedCatalog
+                                              ? 'label.asset-catalog'
+                                              : 'label.asset-category'
+                                          ),
                                         }
                                       )}
                                       icon={DeleteIcon}
@@ -689,7 +806,11 @@ const AssetCatalogPage: React.FC = () => {
                                   key: 'delete-button',
                                   onClick: (e) => {
                                     e.domEvent.stopPropagation();
-                                    handleDeleteCategory();
+                                    if (selectedCatalog) {
+                                      handleDeleteCatalog(selectedCatalog);
+                                    } else {
+                                      handleDeleteCategory();
+                                    }
                                   },
                                 },
                               ],
@@ -723,15 +844,77 @@ const AssetCatalogPage: React.FC = () => {
 
                   {/* Tab 页 */}
                   <Tabs
-                    defaultActiveKey="catalogs"
+                    activeKey={activeTab}
+                    className="tabs-new"
                     items={[
                       {
-                        key: 'catalogs',
-                        label: `${t('label.asset-catalog-plural')} (${
-                          catalogs.length
-                        })`,
+                        key: 'overview',
+                        label: (
+                          <TabsLabel id="overview" name={t('label.overview')} />
+                        ),
                         children: (
-                          <div>
+                          <Row className="m-t-md p-x-md" gutter={[16, 16]}>
+                            <Col span={24}>
+                              <Card title={t('label.detail-plural')}>
+                                <Descriptions
+                                  bordered
+                                  column={2}
+                                  labelStyle={{
+                                    fontWeight: 600,
+                                    width: '200px',
+                                  }}
+                                  size="middle">
+                                  <Descriptions.Item label={t('label.name')}>
+                                    {activeNode.name}
+                                  </Descriptions.Item>
+                                  <Descriptions.Item
+                                    label={t('label.display-name')}>
+                                    {activeNode.displayName || '-'}
+                                  </Descriptions.Item>
+                                  <Descriptions.Item
+                                    label={t('label.description')}
+                                    span={2}>
+                                    {activeNode.description || '-'}
+                                  </Descriptions.Item>
+                                  {selectedCatalog && (
+                                    <>
+                                      <Descriptions.Item
+                                        label={t('label.hierarchy-level')}>
+                                        {selectedCatalog.level ?? '-'}
+                                      </Descriptions.Item>
+                                      <Descriptions.Item
+                                        label={t('label.asset-count')}>
+                                        {selectedCatalog.assetCount ?? 0}
+                                      </Descriptions.Item>
+                                    </>
+                                  )}
+                                </Descriptions>
+                              </Card>
+                            </Col>
+                          </Row>
+                        ),
+                      },
+                      {
+                        key: 'catalogs',
+                        label: (
+                          <TabsLabel
+                            count={
+                              selectedCatalog
+                                ? catalogs.filter(
+                                    (c) => c.parent?.id === selectedCatalog.id
+                                  ).length
+                                : catalogs.filter(
+                                    (c) =>
+                                      c.category?.id === selectedCategory?.id &&
+                                      !c.parent
+                                  ).length
+                            }
+                            id="catalogs"
+                            name={t('label.asset-catalog-plural')}
+                          />
+                        ),
+                        children: (
+                          <div className="p-t-md">
                             {isLoadingCatalogs ? (
                               <Loader />
                             ) : catalogsError ? (
@@ -742,7 +925,18 @@ const AssetCatalogPage: React.FC = () => {
                             ) : (
                               <Table
                                 columns={catalogColumns}
-                                dataSource={catalogs}
+                                dataSource={
+                                  selectedCatalog
+                                    ? catalogs.filter(
+                                        (c) =>
+                                          c.parent?.id === selectedCatalog.id
+                                      )
+                                    : catalogs.filter(
+                                        (c) =>
+                                          c.category?.id ===
+                                            selectedCategory?.id && !c.parent
+                                      )
+                                }
                                 pagination={{
                                   pageSize: 10,
                                   showSizeChanger: true,
@@ -757,8 +951,30 @@ const AssetCatalogPage: React.FC = () => {
                         ),
                       },
                       {
+                        key: 'assets',
+                        label: (
+                          <TabsLabel
+                            id="assets"
+                            name={t('label.data-asset-plural')}
+                          />
+                        ),
+                        children: (
+                          <div className="text-center p-lg">
+                            <p className="text-grey-muted">
+                              {/* // TODO: Fetch data assets inside this catalog and its descendants */}
+                              {t('message.feature-coming-soon')}
+                            </p>
+                          </div>
+                        ),
+                      },
+                      {
                         key: 'activity',
-                        label: t('label.activity-feed-plural'),
+                        label: (
+                          <TabsLabel
+                            id="activity"
+                            name={t('label.activity-feed-plural')}
+                          />
+                        ),
                         children: (
                           <div className="text-center p-lg">
                             <p className="text-grey-muted">
@@ -768,6 +984,7 @@ const AssetCatalogPage: React.FC = () => {
                         ),
                       },
                     ]}
+                    onChange={(k) => setActiveTab(k)}
                   />
                 </>
               ) : (
@@ -787,12 +1004,12 @@ const AssetCatalogPage: React.FC = () => {
       {/* 资产目录编辑/创建 Modal */}
       <Modal
         confirmLoading={isSubmitting}
-        open={isCatalogModalVisible}
         title={
           catalogModalMode === 'create'
             ? t('label.add-entity', { entity: t('label.asset-catalog') })
             : t('label.edit-entity', { entity: t('label.asset-catalog') })
         }
+        visible={isCatalogModalVisible}
         width={600}
         onCancel={() => {
           setIsCatalogModalVisible(false);
@@ -855,12 +1072,12 @@ const AssetCatalogPage: React.FC = () => {
       {/* 资产分类编辑/创建 Modal */}
       <Modal
         confirmLoading={isCategorySubmitting}
-        open={isCategoryModalVisible}
         title={
           categoryModalMode === 'create'
             ? t('label.add-asset-category')
             : t('label.edit-asset-category')
         }
+        visible={isCategoryModalVisible}
         width={600}
         onCancel={() => {
           setIsCategoryModalVisible(false);
@@ -915,6 +1132,75 @@ const AssetCatalogPage: React.FC = () => {
             <TextArea
               autoSize={{ minRows: 3, maxRows: 6 }}
               placeholder={t('label.description')}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 删除资产确认 Modal 防呆保护 */}
+      <Modal
+        footer={[
+          <Button key="cancel" onClick={() => setDeleteConfirmVisible(false)}>
+            {t('label.cancel')}
+          </Button>,
+          <Button
+            danger
+            disabled={deleteConfirmText !== 'DELETE'}
+            key="submit"
+            type="primary"
+            onClick={executeDelete}>
+            {t('label.delete')}
+          </Button>,
+        ]}
+        title={t('label.delete-entity', {
+          entity: t(
+            entityToDelete?.type === 'catalog'
+              ? 'label.asset-catalog'
+              : 'label.asset-category'
+          ),
+        })}
+        visible={deleteConfirmVisible}
+        onCancel={() => setDeleteConfirmVisible(false)}>
+        <p>
+          {t('message.delete-confirmation', {
+            entity:
+              entityToDelete?.data?.displayName ||
+              entityToDelete?.data?.name ||
+              '',
+          })}
+        </p>
+        <p className="m-t-md">
+          To confirm deletion, type <strong>DELETE</strong> below:
+        </p>
+        <Input
+          className="m-t-xs"
+          placeholder="DELETE"
+          value={deleteConfirmText}
+          onChange={(e) => setDeleteConfirmText(e.target.value)}
+        />
+      </Modal>
+
+      {/* 更改父级目录 Modal */}
+      <Modal
+        confirmLoading={isMoveSubmitting}
+        title={t('label.change-entity', { entity: t('label.parent') })}
+        visible={isMoveModalVisible}
+        onCancel={() => setIsMoveModalVisible(false)}
+        onOk={handleMoveCatalogSubmit}>
+        <div className="m-b-sm">{t('message.move-catalog-description')}</div>
+        <Form layout="vertical">
+          <Form.Item label={t('label.parent-catalog')}>
+            <Select
+              allowClear
+              options={catalogs
+                .filter((c) => c.id !== selectedCatalog?.id) // 不能移动到自己内部等，简化起见跳过自身
+                .map((c) => ({
+                  label: c.displayName || c.name,
+                  value: c.id,
+                }))}
+              placeholder={t('label.select-parent-catalog')}
+              value={moveCatalogTarget}
+              onChange={setMoveCatalogTarget}
             />
           </Form.Item>
         </Form>

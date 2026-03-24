@@ -81,6 +81,11 @@ ENTITY_TYPE
     | 'apiCollection'
     | 'apiEndpoint'
     | 'apiService'
+    | 'assetCategory'
+    | 'assetCatalog'
+    | 'assetType'
+    | 'assetAttribute'
+    | 'dataAsset'
     ;
 
 ENTITY_FIELD

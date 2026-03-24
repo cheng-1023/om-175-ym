@@ -86,7 +86,7 @@ const AssetCategoryPage: React.FC = () => {
         page: currentPage,
       };
 
-      const response = await getAssetCategoriesList(params);
+      const response = await getAssetCategoriesList({ ...params, fields: 'catalogCount' });
       setAssetCategories(response.data || []);
     } catch (err) {
       setError(err as AxiosError);
@@ -141,10 +141,11 @@ const AssetCategoryPage: React.FC = () => {
               entity: record.displayName || record.name,
             })
           );
-        } catch (error) {
+        } catch (error: any) {
           // eslint-disable-next-line no-console
           console.error('Delete failed:', error);
-          message.error(t('message.delete-failed'));
+          const errMsg = error.response?.data?.message || t('message.delete-failed');
+          message.error(errMsg);
         }
       },
     });
@@ -202,10 +203,11 @@ const AssetCategoryPage: React.FC = () => {
 
       setIsModalVisible(false);
       await fetchAssetCategories();
-    } catch (error) {
+    } catch (error: any) {
       // eslint-disable-next-line no-console
       console.error('Submit failed:', error);
-      message.error(t('message.submit-failed'));
+      const errMsg = error.response?.data?.message || t('message.submit-failed');
+      message.error(errMsg);
     } finally {
       setIsSubmitting(false);
     }

@@ -12,6 +12,7 @@
  */
 
 import {
+  Breadcrumb,
   Button,
   Card,
   Col,
@@ -23,6 +24,7 @@ import {
   Select,
   Space,
   Table,
+  Tabs,
   Tag,
   Tooltip,
   Upload,
@@ -31,13 +33,28 @@ import { AxiosError } from 'axios';
 import { Operation } from 'fast-json-patch';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link, useHistory, useParams } from 'react-router-dom';
 import { ReactComponent as IconAssets } from '../../../assets/svg/data-asset.svg';
 import { ReactComponent as EditIcon } from '../../../assets/svg/edit-new.svg';
 import { ReactComponent as DeleteIcon } from '../../../assets/svg/ic-delete.svg';
-import { ReactComponent as DetailsIcon } from '../../../assets/svg/edit-new.svg';
+
 import { ReactComponent as SearchIcon } from '../../../assets/svg/ic-search.svg';
 
 import { UploadOutlined, DownloadOutlined } from '@ant-design/icons';
+import Icon, { LikeOutlined, DislikeOutlined } from '@ant-design/icons';
+import { ReactComponent as VersionIcon } from '../../../assets/svg/ic-version.svg';
+import { ReactComponent as IconDropdown } from '../../../assets/svg/menu.svg';
+import { ManageButtonItemLabel } from '../../../components/common/ManageButtonContentItem/ManageButtonContentItem.component';
+import TabsLabel from '../../../components/common/TabsLabel/TabsLabel.component';
+import { EntityHeader } from '../../../components/Entity/EntityHeader/EntityHeader.component';
+import ResizablePanels from '../../../components/common/ResizablePanels/ResizablePanels';
+import { COMMON_RESIZABLE_PANEL_CONFIG } from '../../../constants/ResizablePanel.constants';
+import {
+  BLACK_COLOR,
+  DE_ACTIVE_COLOR,
+} from '../../../constants/constants';
+import { EntityType } from '../../../enums/entity.enum';
+
 import ErrorPlaceHolder from '../../../components/common/ErrorWithPlaceholder/ErrorPlaceHolder';
 import Loader from '../../../components/common/Loader/Loader';
 import PageLayoutV1 from '../../../components/PageLayoutV1/PageLayoutV1';
@@ -64,6 +81,15 @@ const { Option } = Select;
 const { TextArea } = Input;
 const { Dragger } = Upload;
 
+// 属性分类常量
+const ATTRIBUTE_CATEGORIES = [
+  { value: 'basic', label: 'label.asset-attribute-category-basic' },
+  { value: 'technical', label: 'label.asset-attribute-category-technical' },
+  { value: 'business', label: 'label.asset-attribute-category-business' },
+  { value: 'quality', label: 'label.asset-attribute-category-quality' },
+  { value: 'security', label: 'label.asset-attribute-category-security' },
+];
+
 import { DataAsset } from '../../../generated/entity/data/asset/dataAsset';
 
 const DataAssetPage: React.FC = () => {
@@ -71,8 +97,11 @@ const DataAssetPage: React.FC = () => {
   const [form] = Form.useForm();
 
   const { currentUser } = useApplicationStore();
+  const history = useHistory();
+  const { fqn: routeFqn } = useParams<{ fqn?: string }>();
 
   const [isLoading, setIsLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
   const [dataAssets, setDataAssets] = useState<DataAsset[]>([]);
   const [assetTypes, setAssetTypes] = useState<any[]>([]);
   const [catalogs, setCatalogs] = useState<any[]>([]);
@@ -100,6 +129,12 @@ const DataAssetPage: React.FC = () => {
     useState<DataAsset | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadFileList, setUploadFileList] = useState<any[]>([]);
+
+  // 详情页动态属性状态
+  const [detailDynamicAttributes, setDetailDynamicAttributes] = useState<AssetAttribute[]>([]);
+  const [isEditValueModalVisible, setIsEditValueModalVisible] = useState(false);
+  const [editingAttr, setEditingAttr] = useState<AssetAttribute | null>(null);
+  const [editingValue, setEditingValue] = useState<any>(null);
 
   const fetchAssetTypes = useCallback(async () => {
     try {
@@ -163,6 +198,29 @@ const DataAssetPage: React.FC = () => {
   }, [fetchDataAssets, fetchAssetTypes, fetchCatalogs, fetchAssetAttributes]);
 
   useEffect(() => {
+    if (routeFqn && dataAssets.length > 0 && !isLoading) {
+      const decodedFqn = decodeURIComponent(routeFqn);
+      const matchedAsset = dataAssets.find(
+        (asset) =>
+          asset.fullyQualifiedName === decodedFqn || asset.name === decodedFqn
+      );
+      if (
+        matchedAsset &&
+        (!selectedAsset || selectedAsset.id !== matchedAsset.id)
+      ) {
+        handleViewDetails(matchedAsset);
+        setViewMode('detail');
+      } else if (!matchedAsset) {
+        setViewMode('list');
+        setSelectedAsset(null);
+      }
+    } else if (!routeFqn) {
+      setViewMode('list');
+      setSelectedAsset(null);
+    }
+  }, [routeFqn, dataAssets, isLoading, selectedAsset]);
+
+  useEffect(() => {
     const fetchDynamicAttrs = async () => {
       if (selectedType && allAttributes.length > 0) {
         try {
@@ -198,9 +256,9 @@ const DataAssetPage: React.FC = () => {
         return true;
       }
       const userRoleNames =
-        currentUser?.roles?.map((r: { name: string }) => r.name) || [];
+        currentUser?.roles?.map((r: any) => r.name as string) || [];
 
-      return attr.assignableRoles.some((role) => userRoleNames.includes(role));
+      return attr.assignableRoles.some((role: any) => userRoleNames.includes(role));
     },
     [currentUser]
   );
@@ -226,9 +284,30 @@ const DataAssetPage: React.FC = () => {
     setPageSize(size);
   };
 
-  const handleViewDetails = (record: DataAsset) => {
+  const handleViewDetails = async (record: DataAsset) => {
     setSelectedAsset(record);
-    setIsDetailModalVisible(true);
+    // 加载这个 asset 的详细 attributes 列表
+    if (record.assetType?.name && allAttributes.length > 0) {
+      try {
+        const typeDetail = await getAssetTypeByName(record.assetType.name, {
+          fields: 'attributes',
+        });
+        if (typeDetail.attributes && typeDetail.attributes.length > 0) {
+          const attrNames = typeDetail.attributes.map((a: any) => a.name);
+          setDetailDynamicAttributes(
+            allAttributes.filter((a) => attrNames.includes(a.name))
+          );
+        } else {
+          setDetailDynamicAttributes([]);
+        }
+      } catch (e) {
+        setDetailDynamicAttributes([]);
+      }
+    } else {
+      setDetailDynamicAttributes([]);
+    }
+    // 不再用 modal，我们用右侧栏
+    // setIsDetailModalVisible(true); 
   };
 
   // 导出功能
@@ -248,10 +327,11 @@ const DataAssetPage: React.FC = () => {
       document.body.removeChild(link);
 
       message.success(t('message.export-successful'));
-    } catch (error) {
+    } catch (error: any) {
       // eslint-disable-next-line no-console
       console.error('Export failed:', error);
-      message.error(t('message.export-failed'));
+      const errMsg = error.response?.data?.message || t('message.export-failed');
+      message.error(errMsg);
     }
   };
 
@@ -261,7 +341,7 @@ const DataAssetPage: React.FC = () => {
     setIsImportModalVisible(true);
   };
 
-  const handleUploadChange = (info: unknown) => {
+  const handleUploadChange = (info: any) => {
     setUploadFileList(info.fileList);
   };
 
@@ -278,7 +358,7 @@ const DataAssetPage: React.FC = () => {
     reader.onload = async (e) => {
       try {
         const csvData = e.target?.result as string;
-        const result: unknown = await importDataAssets('all', csvData, false);
+        const result: any = await importDataAssets('all', csvData, false);
 
         if (result.failedCount === 0) {
           message.success(
@@ -298,10 +378,11 @@ const DataAssetPage: React.FC = () => {
         setIsImportModalVisible(false);
         setUploadFileList([]);
         await fetchDataAssets();
-      } catch (error) {
+      } catch (error: any) {
         // eslint-disable-next-line no-console
         console.error('Import failed:', error);
-        message.error(t('message.import-failed'));
+        const errMsg = error.response?.data?.message || t('message.import-failed');
+        message.error(errMsg);
       }
     };
 
@@ -332,8 +413,8 @@ const DataAssetPage: React.FC = () => {
       name: record.name,
       displayName: record.displayName || '',
       description: record.description || '',
-      assetType: record.assetType?.name,
-      catalog: record.catalog?.name,
+      assetType: record.assetType?.fullyQualifiedName || record.assetType?.name,
+      catalog: record.catalog?.fullyQualifiedName || record.catalog?.name,
       extension: extensionValues,
     });
     setIsFormModalVisible(true);
@@ -354,13 +435,52 @@ const DataAssetPage: React.FC = () => {
           await deleteDataAssetByName(record.name, false, true);
           await fetchDataAssets();
           message.success(t('message.entity-deleted-successfully'));
-        } catch (error) {
+          if (selectedAsset?.id === record.id) setSelectedAsset(null);
+        } catch (error: any) {
           // eslint-disable-next-line no-console
           console.error('Delete failed:', error);
-          message.error(t('message.delete-failed'));
+          const errMsg = error.response?.data?.message || t('message.delete-failed');
+          message.error(errMsg);
         }
       },
     });
+  };
+
+  // 单个属性值行内提交
+  const handleEditValueSubmit = async () => {
+    if (!selectedAsset || !editingAttr) return;
+    try {
+      setIsSubmitting(true);
+      const currentExtensions = selectedAsset.attributeValues || [];
+      const newExtensions = currentExtensions.filter((a) => a.name !== editingAttr.name);
+      if (editingValue !== undefined && editingValue !== null) {
+        newExtensions.push({ name: editingAttr.name, value: editingValue });
+      }
+
+      const patch: Operation[] = [
+        {
+          op: 'add',
+          path: '/extension',
+          value: newExtensions.reduce((acc, curr) => {
+            acc[curr.name] = curr.value;
+            return acc;
+          }, {} as Record<string, any>),
+        },
+      ];
+
+      const response = await patchDataAssetByName(selectedAsset.name, patch);
+      setSelectedAsset(response.data || response);
+      setIsEditValueModalVisible(false);
+      setEditingAttr(null);
+      setEditingValue(null);
+      message.success(t('message.entity-updated-successfully'));
+      await fetchDataAssets();
+    } catch (e: any) {
+      console.error(e);
+      message.error(e.response?.data?.message || t('message.submit-failed'));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // 提交表单
@@ -370,7 +490,7 @@ const DataAssetPage: React.FC = () => {
       setIsSubmitting(true);
 
       if (modalMode === 'create') {
-        const payload: unknown = {
+        const payload: any = {
           name: values.name,
           displayName: values.displayName,
           description: values.description,
@@ -416,10 +536,11 @@ const DataAssetPage: React.FC = () => {
       setIsFormModalVisible(false);
       form.resetFields();
       await fetchDataAssets();
-    } catch (error) {
+    } catch (error: any) {
       // eslint-disable-next-line no-console
       console.error('Submit failed:', error);
-      message.error(t('message.submit-failed'));
+      const errMsg = error.response?.data?.message || t('message.submit-failed');
+      message.error(errMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -433,7 +554,11 @@ const DataAssetPage: React.FC = () => {
       width: 250,
       render: (text: string, record: DataAsset) => (
         <Space direction="vertical" size={0}>
-          <div className="font-bold">{record.displayName || text}</div>
+          <Link
+            className="font-bold text-primary"
+            to={`/dataAsset/${record.fullyQualifiedName ?? text}`}>
+            {record.displayName || text}
+          </Link>
           <div className="text-xs text-grey-muted">{text}</div>
         </Space>
       ),
@@ -500,17 +625,9 @@ const DataAssetPage: React.FC = () => {
     {
       title: t('label.action-plural'),
       key: 'actions',
-      width: 120,
+      width: 100,
       render: (_: unknown, record: DataAsset) => (
         <Space size="small">
-          <Tooltip title={t('label.view-details')}>
-            <Button
-              icon={<DetailsIcon width="14px" />}
-              size="small"
-              type="text"
-              onClick={() => handleViewDetails(record)}
-            />
-          </Tooltip>
           <Tooltip title={t('label.edit')}>
             <Button
               icon={<EditIcon className="table-action-icon" />}
@@ -566,8 +683,8 @@ const DataAssetPage: React.FC = () => {
   );
 
   const filtersBar = (
-    <Row align="middle" gutter={[16, 16]}>
-      <Col md={6} sm={12} xs={24}>
+    <Row align="middle" gutter={[16, 16]} wrap={false}>
+      <Col flex="200px">
         <Search
           allowClear
           placeholder={t('label.search-data-assets')}
@@ -577,7 +694,7 @@ const DataAssetPage: React.FC = () => {
           onSearch={handleSearch}
         />
       </Col>
-      <Col md={5} sm={12} xs={24}>
+      <Col flex="180px">
         <Select
           allowClear
           loading={isLoading && assetTypes.length === 0}
@@ -592,7 +709,7 @@ const DataAssetPage: React.FC = () => {
           ))}
         </Select>
       </Col>
-      <Col md={5} sm={12} xs={24}>
+      <Col flex="180px">
         <Select
           allowClear
           loading={isLoading && catalogs.length === 0}
@@ -607,7 +724,7 @@ const DataAssetPage: React.FC = () => {
           ))}
         </Select>
       </Col>
-      <Col md={12} sm={24} style={{ textAlign: 'right' }} xs={24}>
+      <Col flex="auto" style={{ textAlign: 'right' }}>
         <Space>
           <Button type="primary" onClick={handleAdd}>
             {t('label.add-entity', { entity: t('label.data-asset') })}
@@ -628,8 +745,8 @@ const DataAssetPage: React.FC = () => {
       className="data-asset-page"
       pageTitle={t('label.data-assets-list')}>
       <div className="p-lg">
-        {pageHeader}
-        <div className="mt-md mb-md">{filtersBar}</div>
+        {viewMode === 'list' && pageHeader}
+        {viewMode === 'list' && <div className="mt-md mb-md">{filtersBar}</div>}
 
         {isLoading ? (
           <Loader />
@@ -638,6 +755,104 @@ const DataAssetPage: React.FC = () => {
             type={ERROR_PLACEHOLDER_TYPE.CUSTOM}
             onClick={fetchDataAssets}
           />
+        ) : viewMode === 'detail' && selectedAsset ? (
+          <div className="data-asset-detail-view" style={{ background: '#fff', minHeight: '100%', borderRadius: '4px' }}>
+            <Breadcrumb className="m-b-md">
+              <Breadcrumb.Item>
+                <a onClick={() => {
+                  setViewMode('list');
+                  setSelectedAsset(null);
+                  history.push('/assets/data');
+                }}>
+                  {t('label.data-assets-list')}
+                </a>
+              </Breadcrumb.Item>
+              <Breadcrumb.Item>{selectedAsset.displayName || selectedAsset.name}</Breadcrumb.Item>
+            </Breadcrumb>
+            {/* 详情区头部 */}
+            <div className="flex justify-between items-start mb-md border-bottom p-b-md">
+              <Space direction="vertical" size={2}>
+                <h4 className="m-0 text-lg font-bold">{selectedAsset.displayName || selectedAsset.name}</h4>
+                <span className="text-grey-muted">{selectedAsset.name}</span>
+              </Space>
+              <Space size="small">
+                <Button
+                  onClick={() => {
+                    setViewMode('list');
+                    setSelectedAsset(null);
+                    history.push('/assets/data');
+                  }}>
+                  {t('label.close')}
+                </Button>
+              </Space>
+            </div>
+            
+            {/* 动态 Tabs */}
+            <Tabs
+              className="tabs-new"
+              defaultActiveKey={ATTRIBUTE_CATEGORIES[0].value}
+              items={[
+                ...ATTRIBUTE_CATEGORIES.map(category => {
+                  const categoryAttrs = detailDynamicAttributes.filter(a => a.attributeCategory === category.value);
+                  if (categoryAttrs.length === 0) return null;
+                  
+                  return {
+                    key: category.value,
+                    label: <TabsLabel id={category.value} name={t(category.label)} />,
+                    children: (
+                      <div className="p-t-md">
+                        <Card size="small">
+                          <Table
+                            size="small"
+                            pagination={false}
+                            columns={[
+                              { title: t('label.name'), dataIndex: 'name', key: 'name', width: '30%' },
+                              { title: t('label.value'), dataIndex: 'value', key: 'value', render: (text, record: any) => text || '-' },
+                              {
+                                title: t('label.action-plural'),
+                                key: 'action',
+                                width: 60,
+                                render: (text, record: any) => (
+                                  <Button
+                                    size="small"
+                                    type="text"
+                                    icon={<Icon component={DetailsIcon} />}
+                                    onClick={() => {
+                                      setEditingAttr(record._rawAttr);
+                                      setEditingValue(record.value);
+                                      setIsEditValueModalVisible(true);
+                                    }}
+                                  />
+                                ),
+                              }
+                            ]}
+                            dataSource={categoryAttrs.map(attr => {
+                              const valObj = selectedAsset.attributeValues?.find(v => v.name === attr.name);
+                              return {
+                                key: attr.name,
+                                name: attr.displayName || attr.name,
+                                value: valObj ? String(valObj.value) : undefined,
+                                _rawAttr: attr,
+                              };
+                            })}
+                          />
+                        </Card>
+                      </div>
+                    )
+                  };
+                }).filter(Boolean) as any[],
+                {
+                  key: 'activity',
+                  label: <TabsLabel id="activity" name={t('label.activity-feed-plural')} />,
+                  children: (
+                    <div className="text-center p-lg">
+                      <p className="text-grey-muted">{t('message.feature-coming-soon')}</p>
+                    </div>
+                  )
+                }
+              ]}
+            />
+          </div>
         ) : (
           <Table
             className="data-asset-table"
@@ -660,86 +875,27 @@ const DataAssetPage: React.FC = () => {
             onChange={handleTableChange}
           />
         )}
-
-        {/* 资产详情模态框 */}
+        {/* 覆盖原 Modal */}
+        {/* 添加/编辑扩展值 Modal */}
         <Modal
-          footer={[
-            <Button key="close" onClick={() => setIsDetailModalVisible(false)}>
-              {t('label.close')}
-            </Button>,
-          ]}
-          open={isDetailModalVisible}
-          title={selectedAsset?.displayName || selectedAsset?.name}
-          width={800}
-          onCancel={() => setIsDetailModalVisible(false)}>
-          {selectedAsset && (
-            <Card bordered={false}>
-              <Space
-                direction="vertical"
-                size="middle"
-                style={{ width: '100%' }}>
-                <div>
-                  <label className="block mb-sm font-semibold">
-                    {t('label.name')}
-                  </label>
-                  <div>{selectedAsset.name}</div>
-                </div>
-                <div>
-                  <label className="block mb-sm font-semibold">
-                    {t('label.display-name')}
-                  </label>
-                  <div>{selectedAsset.displayName || '-'}</div>
-                </div>
-                <div>
-                  <label className="block mb-sm font-semibold">
-                    {t('label.description')}
-                  </label>
-                  <div>{selectedAsset.description || '-'}</div>
-                </div>
-                <div>
-                  <label className="block mb-sm font-semibold">
-                    {t('label.asset-type')}
-                  </label>
-                  <Tag color="geekblue">
-                    {selectedAsset.assetType?.displayName ||
-                      selectedAsset.assetType?.name ||
-                      '-'}
-                  </Tag>
-                </div>
-                <div>
-                  <label className="block mb-sm font-semibold">
-                    {t('label.catalog')}
-                  </label>
-                  <Tag color="green">
-                    {selectedAsset.catalog?.displayName ||
-                      selectedAsset.catalog?.name ||
-                      '-'}
-                  </Tag>
-                </div>
-                {selectedAsset.attributeValues &&
-                  selectedAsset.attributeValues.length > 0 && (
-                    <div>
-                      <label className="block mb-sm font-semibold">
-                        {t('label.attribute-values')}
-                      </label>
-                      <Space wrap size={8}>
-                        {selectedAsset.attributeValues.map((attr, index) => {
-                          const displayVal =
-                            attr.value === undefined || attr.value === null
-                              ? '-'
-                              : String(attr.value);
-
-                          return (
-                            <Tag color="blue" key={index}>
-                              <strong>{attr.name}:</strong> {displayVal}
-                            </Tag>
-                          );
-                        })}
-                      </Space>
-                    </div>
-                  )}
-              </Space>
-            </Card>
+          title={t('label.edit-entity', { entity: editingAttr?.displayName || editingAttr?.name })}
+          visible={isEditValueModalVisible}
+          onOk={handleEditValueSubmit}
+          onCancel={() => setIsEditValueModalVisible(false)}
+          confirmLoading={isSubmitting}
+        >
+          <div className="m-b-sm">{t('label.field-data-type')}: {editingAttr?.dataType}</div>
+          {editingAttr?.dataType === 'boolean' ? (
+            <Select style={{ width: '100%' }} value={editingValue} onChange={setEditingValue} allowClear>
+              <Option value={true}>{t('label.true')}</Option>
+              <Option value={false}>{t('label.false')}</Option>
+            </Select>
+          ) : editingAttr?.dataType === 'text' ? (
+            <TextArea value={editingValue} onChange={(e) => setEditingValue(e.target.value)} autoSize={{ minRows: 3 }} />
+          ) : editingAttr?.dataType === 'number' ? (
+            <Input type="number" value={editingValue} onChange={(e) => setEditingValue(Number(e.target.value))} />
+          ) : (
+            <Input value={editingValue} onChange={(e) => setEditingValue(e.target.value)} />
           )}
         </Modal>
 
@@ -811,7 +967,7 @@ const DataAssetPage: React.FC = () => {
               ]}>
               <Select placeholder={t('label.asset-type')}>
                 {assetTypes.map((type) => (
-                  <Option key={type.id} value={type.name}>
+                  <Option key={type.id} value={type.fullyQualifiedName || type.name}>
                     {type.displayName || type.name}
                   </Option>
                 ))}
@@ -820,7 +976,7 @@ const DataAssetPage: React.FC = () => {
             <Form.Item label={t('label.catalog')} name="catalog">
               <Select allowClear placeholder={t('label.catalog')}>
                 {catalogs.map((catalog) => (
-                  <Option key={catalog.id} value={catalog.name}>
+                  <Option key={catalog.id} value={catalog.fullyQualifiedName || catalog.name}>
                     {catalog.displayName || catalog.name}
                   </Option>
                 ))}

@@ -33,7 +33,10 @@ import java.util.List;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
 import org.openmetadata.csv.EntityCsv;
+import org.openmetadata.schema.entity.data.asset.AssetCatalog;
+import org.openmetadata.schema.entity.data.asset.AssetType;
 import org.openmetadata.schema.entity.data.asset.DataAsset;
+import org.openmetadata.schema.type.EntityReference;
 import org.openmetadata.schema.type.Include;
 import org.openmetadata.schema.type.Relationship;
 import org.openmetadata.schema.type.change.ChangeSource;
@@ -47,6 +50,8 @@ import org.openmetadata.service.jdbi3.ListFilter;
 import org.openmetadata.service.jdbi3.Repository;
 import org.openmetadata.service.resources.asset.DataAssetResource;
 import org.openmetadata.service.util.EntityUtil.Fields;
+
+
 
 @Repository
 public class DataAssetRepository extends EntityRepository<DataAsset> {
@@ -68,7 +73,9 @@ public class DataAssetRepository extends EntityRepository<DataAsset> {
 
   @Override
   public void setFields(DataAsset asset, Fields fields) {
-    // 暂无额外的字段设置
+    // 从关系表恢复 assetType 和 catalog 引用
+    asset.setAssetType(getAssetTypeRef(asset));
+    asset.setCatalog(getCatalogRef(asset));
   }
 
   @Override
@@ -83,18 +90,28 @@ public class DataAssetRepository extends EntityRepository<DataAsset> {
       throw new IllegalArgumentException("资产类型(AssetType)不能为空");
     }
 
-    // 验证assetType存在性
-    getReference(asset.getAssetType().getId(), Include.NON_DELETED);
+    // 通过 EntityReference 获取完整 AssetType 实体并转换为完整的 EntityReference
+    AssetType assetType = Entity.getEntity(asset.getAssetType(), "", Include.NON_DELETED);
+    asset.setAssetType(assetType.getEntityReference());
 
-    // 验证catalog存在性（如果提供）
+    // 验证 catalog 存在性（如果提供），并转换为完整的 EntityReference
     if (asset.getCatalog() != null) {
-      getReference(asset.getCatalog().getId(), Include.NON_DELETED);
+      AssetCatalog catalog = Entity.getEntity(asset.getCatalog(), "", Include.NON_DELETED);
+      asset.setCatalog(catalog.getEntityReference());
     }
   }
 
   @Override
   public void storeEntity(DataAsset asset, boolean update) {
+    // 存储前清除引用字段，避免冗余序列化到 JSON（关系通过关系表管理）
+    EntityReference assetType = asset.getAssetType();
+    EntityReference catalog = asset.getCatalog();
+    asset.setAssetType(null);
+    asset.setCatalog(null);
     store(asset, update);
+    // 恢复引用字段，供后续 storeRelationships() 使用
+    asset.setAssetType(assetType);
+    asset.setCatalog(catalog);
   }
 
   @Override
@@ -123,6 +140,16 @@ public class DataAssetRepository extends EntityRepository<DataAsset> {
   public EntityUpdater getUpdater(
       DataAsset original, DataAsset updated, Operation operation, ChangeSource changeSource) {
     return new DataAssetUpdater(original, updated, operation);
+  }
+
+  /** 从关系表恢复 DataAsset 关联的 AssetType（DataAsset HAS AssetType） */
+  private EntityReference getAssetTypeRef(DataAsset asset) {
+    return getToEntityRef(asset.getId(), Relationship.HAS, ASSET_TYPE, false);
+  }
+
+  /** 从关系表恢复 DataAsset 所属的 AssetCatalog（AssetCatalog CONTAINS DataAsset） */
+  private EntityReference getCatalogRef(DataAsset asset) {
+    return getFromEntityRef(asset.getId(), DATA_ASSET, Relationship.CONTAINS, ASSET_CATALOG, false);
   }
 
   @Override
