@@ -10,7 +10,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-import { Space, Typography } from 'antd';
+import { Alert, Space, Typography } from 'antd';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { CSVImportResult } from '../../../../generated/type/csvImportResult';
@@ -22,6 +22,7 @@ export const ImportStatus = ({ csvImportResult }: ImportStatusProps) => {
   const { t } = useTranslation();
 
   return (
+    <div className="w-full">
     <Space>
       <div>
         <Typography.Text type="secondary">{`${t(
@@ -50,5 +51,15 @@ export const ImportStatus = ({ csvImportResult }: ImportStatusProps) => {
         </span>
       </div>
     </Space>
+    {csvImportResult.message && (
+      <Alert
+        className="m-t-sm"
+        showIcon
+        type={csvImportResult.numberOfRowsFailed && csvImportResult.numberOfRowsFailed > 0 ? 'warning' : 'success'}
+        message={t('label.import-status')}
+        description={csvImportResult.message}
+      />
+    )}
+    </div>
   );
 };

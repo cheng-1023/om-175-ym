@@ -7,11 +7,6 @@
     { "name": "attributeCategory", "required": false, "description": "Category of the attribute. Allowed values: `basic`, `technical`, `business`, `quality`, `security`.", "examples": ["`technical`, `business`"] },
     { "name": "dataType", "required": false, "description": "Data type of the attribute. Allowed values: `string`, `number`, `date`, `boolean`, `text`, `array`.", "examples": ["`string`, `number`"] },
     { "name": "required", "required": false, "description": "Whether this attribute is required.", "examples": ["`true`, `false`"] },
-    { "name": "assignableRoles", "required": false, "description": "Roles that can fill this attribute, separated by ';'.", "examples": ["`DataSteward;DataEngineer`"] },
-    { "name": "tags", "required": false, "description": "Fully qualified classification tag names separated by ';'.", "examples": ["`PII.Sensitive`"] },
-    { "name": "reviewers", "required": false, "description": "User names separated by ';'.", "examples": ["`john;adam`"] },
-    { "name": "owner", "required": false, "description": "Owner names separated by ';'.", "examples": ["`user;john`"] },
-    { "name": "domain", "required": false, "description": "Fully qualified domain name.", "examples": ["`Sales`"] },
-    { "name": "extension", "required": false, "description": "Custom extension properties.", "examples": ["`customAttribute:value`"] }
+    { "name": "assignableRoles", "required": false, "description": "Roles that can fill this attribute, separated by ';'.", "examples": ["`DataSteward;DataEngineer`"] }
   ]
 }

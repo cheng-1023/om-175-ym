@@ -264,6 +264,7 @@ export type SearchIndexSearchSourceMapping = {
   [SearchIndex.API_COLLECTION_INDEX]: APICollectionSearchSource;
   [SearchIndex.API_ENDPOINT_INDEX]: APIEndpointSearchSource;
   [SearchIndex.METRIC_SEARCH_INDEX]: MetricSearchSource;
+  [SearchIndex.DATA_ASSET_SEARCH]: TableSearchSource;
 };
 
 export type SearchRequest<

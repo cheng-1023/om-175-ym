@@ -21,16 +21,57 @@
     flex-shrink: 0;
   }
 
-  .asset-data-container {
+  .explore-data-container {
     flex: 1;
     overflow: hidden;
 
     .explore-main-card {
       height: 100%;
+      overflow: hidden;
 
       .ant-card-body {
         height: 100%;
         padding: 16px;
+        overflow: auto;
+      }
+    }
+
+    .data-asset-card {
+      border: 1px solid #dce3f0;
+      border-radius: 8px;
+      transition: all 0.3s;
+      &.highlight-card {
+        border-color: #1890ff;
+        box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        background-color: #f0f5ff;
+      }
+      &:hover {
+        border-color: #1890ff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+      }
+      .ant-card-body {
+        padding: 0;
+      }
+    }
+
+    .explore-right-panel {
+      height: 100%;
+      overflow: hidden;
+
+      .ant-card {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+
+        .ant-card-head {
+          min-height: 48px;
+        }
+
+        .ant-card-body {
+          flex: 1;
+          overflow-y: auto;
+          overflow-x: hidden;
+        }
       }
     }
   }
@@ -43,7 +84,7 @@
   }
 
   .ant-tree-node-content-wrapper {
-    padding: 4px 8px;
+    padding: 0 4px;
     border-radius: 4px;
     transition: background-color 0.2s;
 

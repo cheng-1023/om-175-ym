@@ -10,7 +10,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-import { isEmpty, isEqual, isNil, isString } from 'lodash';
+import { isArray, isEmpty, isEqual, isNil, isString } from 'lodash';
 import Qs from 'qs';
 import React, {
   useCallback,
@@ -30,9 +30,18 @@ import {
   ValueSource,
 } from 'react-awesome-query-builder';
 import { useHistory, useParams } from 'react-router-dom';
+import {
+  RANGE_FIELD_OPERATORS,
+  TEXT_FIELD_OPERATORS,
+} from '../../../constants/AdvancedSearch.constants';
 import { SearchIndex } from '../../../enums/search.enum';
+import {
+  AssetAttribute,
+  DataType,
+} from '../../../generated/entity/data/asset/assetAttribute';
 import useCustomLocation from '../../../hooks/useCustomLocation/useCustomLocation';
 import { TabsInfoData } from '../../../pages/ExplorePage/ExplorePage.interface';
+import { getAssetAttributesList } from '../../../rest/assetAPI';
 import { getAllCustomProperties } from '../../../rest/metadataTypeAPI';
 import advancedSearchClassBase from '../../../utils/AdvancedSearchClassBase';
 import {
@@ -76,6 +85,7 @@ export const AdvanceSearchProvider = ({
   updateURL = true,
   fieldOverrides = [],
   searchOutputType = SearchOutputType.ElasticSearch,
+  searchIndex: propSearchIndex,
 }: AdvanceSearchProviderProps) => {
   const tabsInfo = searchClassBase.getTabsInfo();
   const tierOptions = useMemo(getTierOptions, []);
@@ -92,7 +102,7 @@ export const AdvanceSearchProvider = ({
 
   const [searchIndex, setSearchIndex] = useState<
     SearchIndex | Array<SearchIndex>
-  >(getSearchIndexFromTabInfo(tabsInfo, tab));
+  >(propSearchIndex ?? getSearchIndexFromTabInfo(tabsInfo, tab));
 
   const changeSearchIndex = useCallback(
     (index: SearchIndex | Array<SearchIndex>) => {
@@ -245,6 +255,57 @@ export const AdvanceSearchProvider = ({
     return subfields;
   };
 
+  // 将资产属性的 dataType 映射为 query-builder 字段类型和操作符
+  const mapDataTypeToQbField = (attr: AssetAttribute) => {
+    const fieldKey = `extension.${attr.name}`;
+    const label = attr.displayName || attr.name;
+    switch (attr.dataType) {
+      case DataType.Number:
+        return {
+          key: fieldKey,
+          config: {
+            label,
+            type: 'number' as const,
+            operators: RANGE_FIELD_OPERATORS,
+            valueSources: ['value'] as any,
+          },
+        };
+      case DataType.Date:
+        return {
+          key: fieldKey,
+          config: {
+            label,
+            type: 'date' as const,
+            operators: RANGE_FIELD_OPERATORS,
+            valueSources: ['value'] as any,
+          },
+        };
+      case DataType.Boolean:
+        return {
+          key: fieldKey,
+          config: {
+            label,
+            type: 'boolean' as const,
+            defaultValue: true,
+            valueSources: ['value'] as any,
+          },
+        };
+      case DataType.String:
+      case DataType.Text:
+      case DataType.Array:
+      default:
+        return {
+          key: fieldKey,
+          config: {
+            label,
+            type: 'text' as const,
+            operators: TEXT_FIELD_OPERATORS,
+            valueSources: ['value'] as any,
+          },
+        };
+    }
+  };
+
   const loadData = async () => {
     const actualConfig = getTreeConfig({
       searchIndex: searchIndex,
@@ -253,15 +314,42 @@ export const AdvanceSearchProvider = ({
       tierOptions,
     });
 
-    let extensionSubField = customProps;
-    if (extensionSubField === null) {
-      extensionSubField = await fetchCustomPropertyType();
-      setCustomProps(extensionSubField);
-    }
+    // 针对 DATA_ASSET_SEARCH：完全替换字段为资产属性
+    const currentIndex = isArray(searchIndex) ? searchIndex : [searchIndex];
+    const isDataAssetSearch = currentIndex.includes(
+      SearchIndex.DATA_ASSET_SEARCH as any
+    );
 
-    if (!isEmpty(extensionSubField)) {
-      (actualConfig.fields.extension as FieldGroup).subfields =
-        extensionSubField;
+    if (isDataAssetSearch) {
+      try {
+        const attrResponse = await getAssetAttributesList({ limit: 1000 });
+        const attributes: AssetAttribute[] = attrResponse.data || [];
+        const attrFields: Fields = {};
+        attributes.forEach((attr) => {
+          const mapped = mapDataTypeToQbField(attr);
+          attrFields[mapped.key] = mapped.config;
+        });
+        // 完全替换字段为资产属性
+        actualConfig.fields = attrFields;
+      } catch (err) {
+        // 加载失败则保留已有字段
+        console.error(
+          'Failed to load asset attributes for advanced search:',
+          err
+        );
+      }
+    } else {
+      // 非 DATA_ASSET_SEARCH 保持原逻辑
+      let extensionSubField = customProps;
+      if (extensionSubField === null) {
+        extensionSubField = await fetchCustomPropertyType();
+        setCustomProps(extensionSubField);
+      }
+
+      if (!isEmpty(extensionSubField)) {
+        (actualConfig.fields.extension as FieldGroup).subfields =
+          extensionSubField;
+      }
     }
 
     // Update field type if field override is provided

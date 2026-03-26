@@ -53,6 +53,8 @@ import org.openmetadata.schema.type.EntityHistory;
 import org.openmetadata.schema.type.Include;
 import org.openmetadata.schema.type.MetadataOperation;
 import org.openmetadata.schema.type.csv.CsvImportResult;
+import org.openmetadata.schema.api.VoteRequest;
+import org.openmetadata.schema.type.ChangeEvent;
 import org.openmetadata.service.jdbi3.ListFilter;
 import org.openmetadata.service.util.JsonUtils;
 import org.openmetadata.service.Entity;
@@ -68,7 +70,7 @@ import org.openmetadata.service.util.ResultList;
 @Tag(name = "AssetAttributes", description = "资产属性管理 API")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
-@Collection(name = "assetAttributes", order = 9)
+@Collection(name = "assetAttributes")
 public class AssetAttributeResource extends EntityResource<AssetAttribute, AssetAttributeRepository> {
   public static final String COLLECTION_PATH = "v1/assetAttributes/";
   static final String FIELDS =
@@ -112,8 +114,15 @@ public class AssetAttributeResource extends EntityResource<AssetAttribute, Asset
       @QueryParam("before") String before,
       @QueryParam("after") String after,
       @QueryParam("include") Include include,
-      @QueryParam("attributeCategory") String attributeCategory) {
+      @QueryParam("attributeCategory") String attributeCategory,
+      @QueryParam("nameSearch") String nameSearch) {
     ListFilter filter = new ListFilter(include);
+    if (attributeCategory != null) {
+      filter.addQueryParam("attributeCategory", attributeCategory);
+    }
+    if (nameSearch != null) {
+      filter.addQueryParam("nameSearch", nameSearch);
+    }
     return super.listInternal(
             uriInfo, securityContext, fieldsParam, filter, limitParam, before, after);
   }
@@ -231,6 +240,33 @@ public class AssetAttributeResource extends EntityResource<AssetAttribute, Asset
       @QueryParam("recursive") boolean recursive,
       @QueryParam("hardDelete") boolean hardDelete) {
     return super.deleteByName(uriInfo, securityContext, name, recursive, hardDelete);
+  }
+
+  @PUT
+  @Path("/{id}/vote")
+  @Operation(
+      operationId = "updateVoteForEntity",
+      summary = "Update Vote for a Entity",
+      description = "Update vote for a Entity",
+      responses = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "OK",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ChangeEvent.class))),
+        @ApiResponse(responseCode = "404", description = "model for instance {id} is not found")
+      })
+  public Response updateVote(
+      @Context UriInfo uriInfo,
+      @Context SecurityContext securityContext,
+      @Parameter(description = "Id of the Entity", schema = @Schema(type = "UUID")) @PathParam("id")
+          UUID id,
+      @Valid VoteRequest request) {
+    return repository
+        .updateVote(securityContext.getUserPrincipal().getName(), id, request)
+        .toResponse();
   }
 
   // ==================== CSV 导入导出 ====================

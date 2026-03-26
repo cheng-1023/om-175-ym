@@ -53,6 +53,8 @@ import org.openmetadata.schema.type.EntityHistory;
 import org.openmetadata.schema.type.Include;
 import org.openmetadata.schema.type.MetadataOperation;
 import org.openmetadata.schema.type.csv.CsvImportResult;
+import org.openmetadata.schema.api.VoteRequest;
+import org.openmetadata.schema.type.ChangeEvent;
 import org.openmetadata.service.util.JsonUtils;
 import org.openmetadata.service.Entity;
 import org.openmetadata.service.jdbi3.ListFilter;
@@ -262,6 +264,33 @@ public class AssetCatalogResource extends EntityResource<AssetCatalog, AssetCata
     return super.deleteByName(uriInfo, securityContext, name, recursive, hardDelete);
   }
 
+  @PUT
+  @Path("/{id}/vote")
+  @Operation(
+      operationId = "updateVoteForEntity",
+      summary = "Update Vote for a Entity",
+      description = "Update vote for a Entity",
+      responses = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "OK",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ChangeEvent.class))),
+        @ApiResponse(responseCode = "404", description = "model for instance {id} is not found")
+      })
+  public Response updateVote(
+      @Context UriInfo uriInfo,
+      @Context SecurityContext securityContext,
+      @Parameter(description = "Id of the Entity", schema = @Schema(type = "UUID")) @PathParam("id")
+          UUID id,
+      @Valid VoteRequest request) {
+    return repository
+        .updateVote(securityContext.getUserPrincipal().getName(), id, request)
+        .toResponse();
+  }
+
   // ==================== CSV 导入导出 ====================
 
   @GET
@@ -289,7 +318,7 @@ public class AssetCatalogResource extends EntityResource<AssetCatalog, AssetCata
 
   @PUT
   @Path("/name/{name}/import")
-  @Consumes(MediaType.TEXT_PLAIN)
+  @Consumes({MediaType.TEXT_PLAIN, "text/csv", "*/*"})
   @Valid
   @Operation(
       operationId = "importAssetCatalogs",

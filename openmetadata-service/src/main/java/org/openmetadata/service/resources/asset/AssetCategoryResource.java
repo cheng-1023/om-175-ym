@@ -53,6 +53,8 @@ import org.openmetadata.schema.type.EntityHistory;
 import org.openmetadata.schema.type.Include;
 import org.openmetadata.schema.type.MetadataOperation;
 import org.openmetadata.schema.type.csv.CsvImportResult;
+import org.openmetadata.schema.api.VoteRequest;
+import org.openmetadata.schema.type.ChangeEvent;
 import org.openmetadata.service.jdbi3.ListFilter;
 import org.openmetadata.service.util.JsonUtils;
 import org.openmetadata.service.Entity;
@@ -327,6 +329,33 @@ public class AssetCategoryResource extends EntityResource<AssetCategory, AssetCa
     return super.deleteByName(uriInfo, securityContext, name, recursive, hardDelete);
   }
 
+  @PUT
+  @Path("/{id}/vote")
+  @Operation(
+      operationId = "updateVoteForEntity",
+      summary = "Update Vote for a Entity",
+      description = "Update vote for a Entity",
+      responses = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "OK",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ChangeEvent.class))),
+        @ApiResponse(responseCode = "404", description = "model for instance {id} is not found")
+      })
+  public Response updateVote(
+      @Context UriInfo uriInfo,
+      @Context SecurityContext securityContext,
+      @Parameter(description = "Id of the Entity", schema = @Schema(type = "UUID")) @PathParam("id")
+          UUID id,
+      @Valid VoteRequest request) {
+    return repository
+        .updateVote(securityContext.getUserPrincipal().getName(), id, request)
+        .toResponse();
+  }
+
   // ==================== CSV 导入导出 ====================
 
   @GET
@@ -354,7 +383,7 @@ public class AssetCategoryResource extends EntityResource<AssetCategory, AssetCa
 
   @PUT
   @Path("/name/{name}/import")
-  @Consumes(MediaType.TEXT_PLAIN)
+  @Consumes({MediaType.TEXT_PLAIN, "text/csv", "*/*"})
   @Valid
   @Operation(
       operationId = "importAssetCategories",
@@ -390,6 +419,6 @@ public class AssetCategoryResource extends EntityResource<AssetCategory, AssetCa
   @Valid
   @Operation(operationId = "getAssetCategoryCsvDocumentation", summary = "获取资产分类 CSV 文档")
   public String getCsvDocumentation(@Context SecurityContext securityContext) {
-    return JsonUtils.pojoToJson(AssetCategoryRepository.AssetCategoryCsv.DOCUMENTATION);
+    return JsonUtils.pojoToJson(org.openmetadata.service.jdbi3.asset.AssetCatalogRepository.AssetCatalogCsv.DOCUMENTATION);
   }
 }

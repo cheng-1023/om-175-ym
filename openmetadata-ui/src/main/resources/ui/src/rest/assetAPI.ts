@@ -14,6 +14,9 @@
 import { AxiosResponse } from 'axios';
 import { Operation } from 'fast-json-patch';
 import { PagingResponse } from 'Models';
+import { VotingDataProps } from '../components/Entity/Voting/voting.interface';
+import { ChangeEvent } from '../generated/type/changeEvent';
+import { EntityHistory } from '../generated/type/entityHistory';
 import { CSVExportResponse } from '../components/Entity/EntityExportModalProvider/EntityExportModalProvider.interface';
 import { CreateAssetAttribute } from '../generated/api/data/asset/createAssetAttribute';
 import { CreateAssetCatalog } from '../generated/api/data/asset/createAssetCatalog';
@@ -48,6 +51,7 @@ export type AssetCatalogParams = AssetCategoryParams;
 
 export type AssetAttributeParams = AssetCategoryParams & {
   attributeCategory?: string;
+  nameSearch?: string;
 };
 
 export type AssetTypeParams = AssetCategoryParams;
@@ -183,7 +187,34 @@ export const importAssetCategories = async (
     AxiosResponse<CSVExportResponse>
   >(`${ASSET_CATEGORIES_BASE_URL}/name/${getEncodedFqn(name)}/import`, csv, {
     params: { dryRun },
+    headers: { 'Content-type': 'text/plain' },
   });
+
+  return response.data;
+};
+
+export const updateAssetCategoryVotes = async (
+  id: string,
+  data: VotingDataProps
+) => {
+  const response = await APIClient.put<
+    VotingDataProps,
+    AxiosResponse<ChangeEvent>
+  >(`${ASSET_CATEGORIES_BASE_URL}/${id}/vote`, data);
+
+  return response.data;
+};
+
+export const getAssetCategoryVersionsList = async (id: string) => {
+  const url = `${ASSET_CATEGORIES_BASE_URL}/${id}/versions`;
+  const response = await APIClient.get<EntityHistory>(url);
+
+  return response.data;
+};
+
+export const getAssetCategoryVersion = async (id: string, version: string) => {
+  const url = `${ASSET_CATEGORIES_BASE_URL}/${id}/versions/${version}`;
+  const response = await APIClient.get<AssetCategory>(url);
 
   return response.data;
 };
@@ -309,7 +340,34 @@ export const importAssetCatalogs = async (
     AxiosResponse<CSVExportResponse>
   >(`${ASSET_CATALOGS_BASE_URL}/name/${getEncodedFqn(name)}/import`, csv, {
     params: { dryRun },
+    headers: { 'Content-type': 'text/plain' },
   });
+
+  return response.data;
+};
+
+export const updateAssetCatalogVotes = async (
+  id: string,
+  data: VotingDataProps
+) => {
+  const response = await APIClient.put<
+    VotingDataProps,
+    AxiosResponse<ChangeEvent>
+  >(`${ASSET_CATALOGS_BASE_URL}/${id}/vote`, data);
+
+  return response.data;
+};
+
+export const getAssetCatalogVersionsList = async (id: string) => {
+  const url = `${ASSET_CATALOGS_BASE_URL}/${id}/versions`;
+  const response = await APIClient.get<EntityHistory>(url);
+
+  return response.data;
+};
+
+export const getAssetCatalogVersion = async (id: string, version: string) => {
+  const url = `${ASSET_CATALOGS_BASE_URL}/${id}/versions/${version}`;
+  const response = await APIClient.get<AssetCatalog>(url);
 
   return response.data;
 };
@@ -440,7 +498,34 @@ export const importAssetAttributes = async (
     AxiosResponse<CSVExportResponse>
   >(`${ASSET_ATTRIBUTES_BASE_URL}/name/${getEncodedFqn(name)}/import`, csv, {
     params: { dryRun },
+    headers: { 'Content-type': 'text/plain' },
   });
+
+  return response.data;
+};
+
+export const updateAssetAttributeVotes = async (
+  id: string,
+  data: VotingDataProps
+) => {
+  const response = await APIClient.put<
+    VotingDataProps,
+    AxiosResponse<ChangeEvent>
+  >(`${ASSET_ATTRIBUTES_BASE_URL}/${id}/vote`, data);
+
+  return response.data;
+};
+
+export const getAssetAttributeVersionsList = async (id: string) => {
+  const url = `${ASSET_ATTRIBUTES_BASE_URL}/${id}/versions`;
+  const response = await APIClient.get<EntityHistory>(url);
+
+  return response.data;
+};
+
+export const getAssetAttributeVersion = async (id: string, version: string) => {
+  const url = `${ASSET_ATTRIBUTES_BASE_URL}/${id}/versions/${version}`;
+  const response = await APIClient.get<AssetAttribute>(url);
 
   return response.data;
 };
@@ -563,7 +648,34 @@ export const importAssetTypes = async (
     AxiosResponse<CSVExportResponse>
   >(`${ASSET_TYPES_BASE_URL}/name/${getEncodedFqn(name)}/import`, csv, {
     params: { dryRun },
+    headers: { 'Content-type': 'text/plain' },
   });
+
+  return response.data;
+};
+
+export const updateAssetTypeVotes = async (
+  id: string,
+  data: VotingDataProps
+) => {
+  const response = await APIClient.put<
+    VotingDataProps,
+    AxiosResponse<ChangeEvent>
+  >(`${ASSET_TYPES_BASE_URL}/${id}/vote`, data);
+
+  return response.data;
+};
+
+export const getAssetTypeVersionsList = async (id: string) => {
+  const url = `${ASSET_TYPES_BASE_URL}/${id}/versions`;
+  const response = await APIClient.get<EntityHistory>(url);
+
+  return response.data;
+};
+
+export const getAssetTypeVersion = async (id: string, version: string) => {
+  const url = `${ASSET_TYPES_BASE_URL}/${id}/versions/${version}`;
+  const response = await APIClient.get<AssetType>(url);
 
   return response.data;
 };
@@ -686,7 +798,34 @@ export const importDataAssets = async (
     AxiosResponse<CSVExportResponse>
   >(`${DATA_ASSETS_BASE_URL}/name/${getEncodedFqn(name)}/import`, csv, {
     params: { dryRun },
+    headers: { 'Content-type': 'text/plain' },
   });
+
+  return response.data;
+};
+
+export const updateDataAssetVotes = async (
+  id: string,
+  data: VotingDataProps
+) => {
+  const response = await APIClient.put<
+    VotingDataProps,
+    AxiosResponse<ChangeEvent>
+  >(`${DATA_ASSETS_BASE_URL}/${id}/vote`, data);
+
+  return response.data;
+};
+
+export const getDataAssetVersionsList = async (id: string) => {
+  const url = `${DATA_ASSETS_BASE_URL}/${id}/versions`;
+  const response = await APIClient.get<EntityHistory>(url);
+
+  return response.data;
+};
+
+export const getDataAssetVersion = async (id: string, version: string) => {
+  const url = `${DATA_ASSETS_BASE_URL}/${id}/versions/${version}`;
+  const response = await APIClient.get<DataAsset>(url);
 
   return response.data;
 };

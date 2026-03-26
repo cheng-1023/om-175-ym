@@ -5,7 +5,7 @@
     { "name": "displayName", "required": false, "description": "Display name for the data asset.", "examples": ["`Customer Table`, `Sales Report`"] },
     { "name": "description", "required": false, "description": "Description of the data asset in Markdown format.", "examples": ["`Customer table data asset`"] },
     { "name": "assetType", "required": true, "description": "Fully qualified name of the AssetType.", "examples": ["`TableAsset`"] },
-    { "name": "catalog", "required": false, "description": "Fully qualified name of the AssetCatalog. Leave empty if not categorized.", "examples": ["`Business Assets.CustomerData`, "empty"] },
+    { "name": "catalog", "required": false, "description": "Fully qualified name of the AssetCatalog. Leave empty if not categorized.", "examples": ["`Business Assets.CustomerData`, empty"] },
     { "name": "tags", "required": false, "description": "Fully qualified classification tag names separated by ';'.", "examples": ["`PII.Sensitive`"] },
     { "name": "reviewers", "required": false, "description": "User names separated by ';'.", "examples": ["`john;adam`"] },
     { "name": "owner", "required": false, "description": "Owner names separated by ';'.", "examples": ["`user;john`"] },

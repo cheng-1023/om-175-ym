@@ -25,11 +25,14 @@ import static org.openmetadata.csv.CsvUtil.addField;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
 import org.openmetadata.csv.EntityCsv;
+import org.openmetadata.schema.entity.data.asset.AssetCatalog;
 import org.openmetadata.schema.entity.data.asset.AssetCategory;
+import org.openmetadata.schema.type.EntityReference;
 import org.openmetadata.schema.type.Include;
 import org.openmetadata.schema.type.Relationship;
 import org.openmetadata.schema.type.change.ChangeSource;
@@ -80,7 +83,16 @@ public class AssetCategoryRepository extends EntityRepository<AssetCategory> {
 
   @Override
   protected void preDelete(AssetCategory category, String deletedBy) {
-    // 级联删除检查：删除category前检查是否有关联的catalog
+    // 1. 检查是否有绑定的数据资产
+    int dataAssetCount = getDataAssetCount(category);
+    if (dataAssetCount > 0) {
+      throw new IllegalArgumentException(
+          String.format(
+              "资产分类 [%s] 下(含子孙目录)一共绑定了 %d 个数据资产，无法删除。请先删除或移除相关数据资产。",
+              category.getFullyQualifiedName(), dataAssetCount));
+    }
+
+    // 2. 级联删除检查：删除category前检查是否有关联的catalog
     int catalogCount = getCatalogCount(category);
     if (catalogCount > 0) {
       throw new IllegalArgumentException(
@@ -100,9 +112,28 @@ public class AssetCategoryRepository extends EntityRepository<AssetCategory> {
     // 存储关联关系，暂无特殊处理
   }
 
+  private int getDataAssetCount(AssetCategory category) {
+    int total = 0;
+    // 获取该分类下所有的资产目录
+    List<EntityReference> catalogs = findTo(
+            category.getId(),
+            Entity.ASSET_CATEGORY,
+            Relationship.HAS,
+            Entity.ASSET_CATALOG);
+            
+    for (EntityReference catalogRef : catalogs) {
+        total += findTo(
+                catalogRef.getId(),
+                Entity.ASSET_CATALOG,
+                Relationship.CONTAINS,
+                Entity.DATA_ASSET).size();
+    }
+    return total;
+  }
+
   private Integer getCatalogCount(AssetCategory category) {
-    // 修复：统计当前category下的catalog数量，而不是全局统计
-    return findFrom(
+    // 统计当前category下的catalog数量
+    return findTo(
             category.getId(),
             Entity.ASSET_CATEGORY,
             Relationship.HAS,
@@ -119,23 +150,30 @@ public class AssetCategoryRepository extends EntityRepository<AssetCategory> {
   @Override
   public String exportToCsv(String name, String user, boolean recursive) throws IOException {
     AssetCategory category = getByName(null, name, Fields.EMPTY_FIELDS);
-    Fields fields = getFields("owners,tags,reviewers,domain,extension");
-    List<AssetCategory> categories =
-        listAll(fields, new ListFilter(Include.NON_DELETED));
-    categories.sort(
-        (a, b) -> a.getFullyQualifiedName().compareTo(b.getFullyQualifiedName()));
-    return new AssetCategoryCsv(user).exportCsv(categories);
+    AssetCatalogRepository catalogRepository = (AssetCatalogRepository) Entity.getEntityRepository(Entity.ASSET_CATALOG);
+    Fields fields = catalogRepository.getFields("category,parent,order");
+    List<org.openmetadata.schema.entity.data.asset.AssetCatalog> catalogs =
+        catalogRepository.listAll(fields, new ListFilter(Include.NON_DELETED));
+
+    List<org.openmetadata.schema.entity.data.asset.AssetCatalog> categoryCatalogs = catalogs.stream()
+        .filter(c -> c.getCategory() != null && c.getCategory().getId().equals(category.getId()))
+        .sorted(Comparator.comparing(AssetCatalog::getFullyQualifiedName))
+        .collect(java.util.stream.Collectors.toList());
+
+    return new AssetCatalogRepository.AssetCatalogCsv(user).exportCsv(categoryCatalogs);
   }
 
   @Override
   public CsvImportResult importFromCsv(
       String name, String csv, boolean dryRun, String user, boolean recursive) throws IOException {
-    AssetCategoryCsv categoryCsv = new AssetCategoryCsv(user);
-    return categoryCsv.importCsv(csv, dryRun);
+    AssetCategory category = getByName(null, name, Fields.EMPTY_FIELDS);
+    AssetCatalogRepository catalogRepository = (AssetCatalogRepository) Entity.getEntityRepository(Entity.ASSET_CATALOG);
+    AssetCatalogRepository.AssetCatalogCsv catalogCsv = new AssetCatalogRepository.AssetCatalogCsv(user, category.getFullyQualifiedName(), null);
+    return catalogCsv.importCsv(csv, dryRun);
   }
 
   /** CSV 导入导出内部类 */
-  public class AssetCategoryCsv extends EntityCsv<AssetCategory> {
+  public static class AssetCategoryCsv extends EntityCsv<AssetCategory> {
     public static final CsvDocumentation DOCUMENTATION =
         getCsvDocumentation(Entity.ASSET_CATEGORY, false);
     public static final List<CsvHeader> HEADERS = getHeaders();
@@ -168,6 +206,9 @@ public class AssetCategoryRepository extends EntityRepository<AssetCategory> {
     @Override
     protected void createEntity(CSVPrinter printer, List<CSVRecord> csvRecords) throws IOException {
       CSVRecord csvRecord = getNextRecord(printer, csvRecords);
+      if (csvRecord == null) {
+        return; // getNextRecord 内部已记录了导入失败信息
+      }
       AssetCategory category = new AssetCategory()
           .withName(csvRecord.get(0))
           .withDisplayName(csvRecord.get(1))

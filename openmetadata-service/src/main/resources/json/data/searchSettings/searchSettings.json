@@ -1210,6 +1210,70 @@
         "displayName",
         "description"
       ]
+    },
+    {
+      "assetType": "dataAsset",
+      "searchFields": [
+        {
+          "field": "name.keyword",
+          "boost": 10.0
+        },
+        {
+          "field": "name",
+          "boost": 10.0
+        },
+        {
+          "field": "name.ngram",
+          "boost": 1.0
+        },
+        {
+          "field": "displayName",
+          "boost": 10.0
+        },
+        {
+          "field": "displayName.ngram",
+          "boost": 1.0
+        },
+        {
+          "field": "description",
+          "boost": 2.0
+        },
+        {
+          "field": "fullyQualifiedName",
+          "boost": 5.0
+        },
+        {
+          "field": "fqnParts",
+          "boost": 5.0
+        },
+        {
+          "field": "assetType",
+          "boost": 5.0
+        },
+        {
+          "field": "catalog",
+          "boost": 3.0
+        }
+      ],
+      "aggregations": [
+        {
+          "name": "assetType",
+          "type": "terms",
+          "field": "assetType.keyword"
+        },
+        {
+          "name": "catalog",
+          "type": "terms",
+          "field": "catalog.keyword"
+        }
+      ],
+      "scoreMode": "sum",
+      "boostMode": "sum",
+      "highlightFields": [
+        "name",
+        "displayName",
+        "description"
+      ]
     }
   ],
   "defaultConfiguration": {
@@ -2359,6 +2423,51 @@
         {
           "name": "fqnParts",
           "description": "Search on individual parts of the fully qualified name, allowing more flexible matching on hierarchy components."
+        }
+      ]
+    },
+    {
+      "entityType": "dataAsset",
+      "fields": [
+        {
+          "name": "name.keyword",
+          "description": "Exact match on data asset name for precise lookups."
+        },
+        {
+          "name": "name",
+          "description": "Standard text analysis on data asset name with tokenization and stemming."
+        },
+        {
+          "name": "name.ngram",
+          "description": "Partial matching on data asset name for finding with incomplete information."
+        },
+        {
+          "name": "displayName",
+          "description": "Standard text analysis on the human-readable data asset name."
+        },
+        {
+          "name": "displayName.ngram",
+          "description": "Partial matching on display name for flexible searching."
+        },
+        {
+          "name": "description",
+          "description": "Full-text search on data asset descriptions to find by purpose or content."
+        },
+        {
+          "name": "fullyQualifiedName",
+          "description": "Search on the complete hierarchical name of the data asset."
+        },
+        {
+          "name": "fqnParts",
+          "description": "Search on parts of the hierarchical name for flexible matching."
+        },
+        {
+          "name": "assetType",
+          "description": "Search by asset type to find data assets of specific types."
+        },
+        {
+          "name": "catalog",
+          "description": "Search by catalog to find data assets belonging to specific catalogs."
         }
       ]
     }

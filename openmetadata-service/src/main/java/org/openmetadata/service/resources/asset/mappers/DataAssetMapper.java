@@ -15,5 +15,7 @@ public class DataAssetMapper implements EntityMapper<DataAsset, CreateDataAsset>
             create.getCatalog() != null
                 ? EntityUtil.getEntityReference(Entity.ASSET_CATALOG, create.getCatalog())
                 : null);
+    // 注意：extension → attributeValues 转换在 DataAssetRepository.prepare() 中统一处理
   }
 }
+

@@ -17,41 +17,31 @@
 
 package org.openmetadata.service.jdbi3.asset;
 
-import static org.openmetadata.csv.CsvUtil.addEntityReferences;
-import static org.openmetadata.csv.CsvUtil.addExtension;
-import static org.openmetadata.csv.CsvUtil.addField;
-import static org.openmetadata.csv.CsvUtil.addOwners;
-import static org.openmetadata.csv.CsvUtil.addReviewers;
-import static org.openmetadata.csv.CsvUtil.addTagLabels;
-import static org.openmetadata.service.Entity.ASSET_ATTRIBUTE;
-import static org.openmetadata.service.Entity.ASSET_TYPE;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import org.apache.commons.csv.CSVPrinter;
-import org.apache.commons.csv.CSVRecord;
-import org.openmetadata.csv.EntityCsv;
 import org.openmetadata.schema.entity.data.asset.AssetType;
 import org.openmetadata.schema.type.EntityReference;
 import org.openmetadata.schema.type.Include;
 import org.openmetadata.schema.type.Relationship;
 import org.openmetadata.schema.type.change.ChangeSource;
 import org.openmetadata.schema.type.csv.CsvDocumentation;
-import org.openmetadata.schema.type.csv.CsvFile;
 import org.openmetadata.schema.type.csv.CsvHeader;
 import org.openmetadata.schema.type.csv.CsvImportResult;
 import org.openmetadata.service.Entity;
 import org.openmetadata.service.jdbi3.EntityRepository;
-import org.openmetadata.service.jdbi3.ListFilter;
 import org.openmetadata.service.jdbi3.Repository;
 import org.openmetadata.service.resources.asset.AssetTypeResource;
 import org.openmetadata.service.util.EntityUtil.Fields;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.openmetadata.service.Entity.ASSET_ATTRIBUTE;
+import static org.openmetadata.service.Entity.ASSET_TYPE;
+
 @Repository
 public class AssetTypeRepository extends EntityRepository<AssetType> {
-  private static final String UPDATE_FIELDS = "";
-  private static final String PATCH_FIELDS = "";
+  private static final String UPDATE_FIELDS = "owners,tags,reviewers,attributes,domain,extension";
+  private static final String PATCH_FIELDS = "owners,tags,reviewers,attributes,domain,extension";
 
   public AssetTypeRepository() {
     super(
@@ -82,7 +72,15 @@ public class AssetTypeRepository extends EntityRepository<AssetType> {
 
   @Override
   public void prepare(AssetType assetType, boolean update) {
-    // 准备逻辑，暂无特殊处理
+    if (assetType.getAttributes() != null) {
+      List<EntityReference> attributes = new ArrayList<>();
+      for (EntityReference ref : assetType.getAttributes()) {
+        org.openmetadata.schema.entity.data.asset.AssetAttribute resolvedAttr = 
+            Entity.getEntity(ref, "", Include.NON_DELETED);
+        attributes.add(resolvedAttr.getEntityReference());
+      }
+      assetType.setAttributes(attributes);
+    }
   }
 
   @Override
@@ -120,64 +118,80 @@ public class AssetTypeRepository extends EntityRepository<AssetType> {
     return new AssetTypeUpdater(original, updated, operation);
   }
 
+  public static final CsvDocumentation ASSET_TYPE_CSV_DOC = new CsvDocumentation().withHeaders(
+      java.util.Collections.singletonList(
+          new CsvHeader().withName("name").withDescription("资产属性名称").withRequired(true)
+      )
+  );
+
   @Override
   public String exportToCsv(String name, String user, boolean recursive) throws IOException {
-    Fields fields = getFields("owners,tags,reviewers,attributes,domain,extension");
-    List<AssetType> assetTypes =
-        listAll(fields, new ListFilter(Include.NON_DELETED));
-    assetTypes.sort(
-        (a, b) -> a.getFullyQualifiedName().compareTo(b.getFullyQualifiedName()));
-    return new AssetTypeCsv(user).exportCsv(assetTypes);
+    AssetType assetType = getByName(null, name, getFields("attributes"));
+    java.io.StringWriter stringWriter = new java.io.StringWriter();
+    try (org.apache.commons.csv.CSVPrinter printer = new org.apache.commons.csv.CSVPrinter(stringWriter, org.apache.commons.csv.CSVFormat.DEFAULT.withHeader("name"))) {
+        if (assetType.getAttributes() != null) {
+            for (EntityReference ref : assetType.getAttributes()) {
+                 printer.printRecord(ref.getName());
+            }
+        }
+    }
+    return stringWriter.toString();
   }
 
   @Override
   public CsvImportResult importFromCsv(
       String name, String csv, boolean dryRun, String user, boolean recursive) throws IOException {
-    AssetTypeCsv typeCsv = new AssetTypeCsv(user);
-    return typeCsv.importCsv(csv, dryRun);
-  }
-
-  /** CSV 导入导出内部类 */
-  public class AssetTypeCsv extends EntityCsv<AssetType> {
-    public static final CsvDocumentation DOCUMENTATION =
-        getCsvDocumentation(Entity.ASSET_TYPE, false);
-    public static final List<CsvHeader> HEADERS = DOCUMENTATION.getHeaders();
-
-    public AssetTypeCsv(String user) {
-      super(Entity.ASSET_TYPE, HEADERS, user);
+    AssetType assetType = getByName(null, name, getFields("attributes"));
+    AssetAttributeRepository attributeRepository =
+        (AssetAttributeRepository) Entity.getEntityRepository(Entity.ASSET_ATTRIBUTE);
+    
+    CsvImportResult result = new CsvImportResult().withDryRun(dryRun);
+    List<EntityReference> newAttributes = new ArrayList<>();
+    
+    java.io.StringWriter stringWriter = new java.io.StringWriter();
+    try (org.apache.commons.csv.CSVPrinter printer = new org.apache.commons.csv.CSVPrinter(stringWriter, org.apache.commons.csv.CSVFormat.DEFAULT.withHeader("status", "details", "name"))) {
+        try (org.apache.commons.csv.CSVParser csvParser = org.apache.commons.csv.CSVParser.parse(csv, org.apache.commons.csv.CSVFormat.DEFAULT.withHeader())) {
+            List<String> headers = csvParser.getHeaderNames();
+            if (headers == null || headers.isEmpty() || !headers.get(0).equals("name")) {
+                 return result.withNumberOfRowsFailed(1)
+                              .withImportResultsCsv("failure,Invalid header (expected 'name'),\n");
+            }
+            
+            int rowsPassed = 0;
+            int rowsFailed = 0;
+            
+            for (org.apache.commons.csv.CSVRecord record : csvParser) {
+               String attrName = record.get(0);
+               if (attrName == null || attrName.trim().isEmpty()) {
+                   printer.printRecord("failure", "Name cannot be empty", "");
+                   rowsFailed++;
+                   continue;
+               }
+               try {
+                 org.openmetadata.schema.entity.data.asset.AssetAttribute attr = attributeRepository.getByName(null, attrName.trim(), attributeRepository.getFields(""));
+                 newAttributes.add(attr.getEntityReference());
+                 printer.printRecord("success", "Entity linked", attrName.trim());
+                 rowsPassed++;
+               } catch (Exception e) {
+                 printer.printRecord("failure", "Attribute not found", attrName.trim());
+                 rowsFailed++;
+               }
+            }
+            result.withNumberOfRowsPassed(rowsPassed).withNumberOfRowsFailed(rowsFailed);
+        }
     }
+    result.withImportResultsCsv(stringWriter.toString());
 
-    @Override
-    protected void createEntity(CSVPrinter printer, List<CSVRecord> csvRecords) throws IOException {
-      CSVRecord csvRecord = getNextRecord(printer, csvRecords);
-      AssetType assetType = new AssetType()
-          .withName(csvRecord.get(0))
-          .withDisplayName(csvRecord.get(1))
-          .withDescription(csvRecord.get(2))
-          .withAttributes(getEntityReferences(printer, csvRecord, 3, Entity.ASSET_ATTRIBUTE))
-          .withTags(getTagLabels(printer, csvRecord, List.of()))
-          .withReviewers(getReviewers(printer, csvRecord, 5))
-          .withOwners(getOwners(printer, csvRecord, 6))
-          .withExtension(getExtension(printer, csvRecord, 8));
-
-      if (processRecord) {
-        createEntity(printer, csvRecord, assetType, Entity.ASSET_TYPE);
-      }
+    if (!dryRun && result.getNumberOfRowsPassed() != null && result.getNumberOfRowsPassed() > 0) {
+      // 批量维护：以导入的 CSV 为准进行全量替换
+      AssetType updated = org.openmetadata.service.util.JsonUtils.deepCopy(assetType, AssetType.class);
+      updated.setAttributes(newAttributes);
+      
+      javax.json.JsonPatch patch = org.openmetadata.service.util.JsonUtils.getJsonPatch(assetType, updated);
+      patch(null, assetType.getId(), user, patch);
     }
-
-    @Override
-    protected void addRecord(CsvFile csvFile, AssetType entity) {
-      List<String> recordList = new ArrayList<>();
-      addField(recordList, entity.getName());
-      addField(recordList, entity.getDisplayName());
-      addField(recordList, entity.getDescription());
-      addEntityReferences(recordList, entity.getAttributes());
-      addTagLabels(recordList, entity.getTags());
-      addReviewers(recordList, entity.getReviewers());
-      addOwners(recordList, entity.getOwners());
-      addExtension(recordList, entity.getExtension());
-      addRecord(csvFile, recordList);
-    }
+    
+    return result;
   }
 
   /** 处理 PUT 和 POST 操作的实体更新逻辑 */

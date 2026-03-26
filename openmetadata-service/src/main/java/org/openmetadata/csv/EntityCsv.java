@@ -128,6 +128,7 @@ public abstract class EntityCsv<T extends EntityInterface> {
   private final List<CsvHeader> csvHeaders;
   private final List<String> expectedHeaders;
   protected final CsvImportResult importResult = new CsvImportResult();
+  private final List<String> errorMessages = new ArrayList<>();
   protected boolean processRecord; // When set to false record processing is discontinued
   protected final Map<String, T> dryRunCreatedEntities = new HashMap<>();
   protected final String importedBy;
@@ -1574,6 +1575,9 @@ public abstract class EntityCsv<T extends EntityInterface> {
 
   protected void importFailure(CSVPrinter printer, String failedReason, CSVRecord inputRecord)
       throws IOException {
+    LOG.error("CSV Import Failure: {} for record: {}", failedReason, inputRecord.toList());
+    String lineError = String.format("第 %d 行: %s", inputRecord.getRecordNumber(), failedReason);
+    errorMessages.add(lineError);
     List<String> recordList = listOf(IMPORT_FAILED, failedReason);
     recordList.addAll(inputRecord.toList());
     printer.printRecord(recordList);
@@ -1584,12 +1588,31 @@ public abstract class EntityCsv<T extends EntityInterface> {
 
   private void setFinalStatus() {
     ApiStatus status = ApiStatus.FAILURE;
+    int passed = importResult.getNumberOfRowsPassed() != null ? importResult.getNumberOfRowsPassed() : 0;
+    int failed = importResult.getNumberOfRowsFailed() != null ? importResult.getNumberOfRowsFailed() : 0;
+    // 数据导入成功行数（扣除表头）
+    int dataRowsPassed = Math.max(0, passed - 1);
+
     if (importResult.getNumberOfRowsPassed().equals(importResult.getNumberOfRowsProcessed())) {
       status = ApiStatus.SUCCESS;
     } else if (importResult.getNumberOfRowsPassed() >= 1) {
       status = ApiStatus.PARTIAL_SUCCESS;
     }
     importResult.setStatus(status);
+
+    StringBuilder msg = new StringBuilder();
+    msg.append("导入结束。成功导入 ").append(dataRowsPassed).append(" 条数据，失败 ").append(failed).append(" 条。");
+    if (!errorMessages.isEmpty()) {
+      msg.append("失败原因概览: ");
+      int limit = Math.min(5, errorMessages.size());
+      for (int i = 0; i < limit; i++) {
+        msg.append(errorMessages.get(i)).append("; ");
+      }
+      if (errorMessages.size() > limit) {
+        msg.append("等更多错误...");
+      }
+    }
+    importResult.setMessage(msg.toString());
   }
 
   public CsvImportResult importCsv(List<CSVRecord> records, boolean dryRun) throws IOException {

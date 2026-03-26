@@ -18,14 +18,17 @@ import {
   Input,
   message,
   Modal,
+  Pagination,
   Row,
   Select,
   Space,
-  Table,
   Tag,
   Tooltip,
   Switch,
+  Upload,
+  Typography,
 } from 'antd';
+import type { UploadFile as AntUploadFile } from 'antd/lib/upload/interface';
 import { AxiosError } from 'axios';
 import { compare } from 'fast-json-patch';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -38,18 +41,26 @@ import { ReactComponent as SearchIcon } from '../../../assets/svg/ic-search.svg'
 import { UploadOutlined, DownloadOutlined } from '@ant-design/icons';
 import ErrorPlaceHolder from '../../../components/common/ErrorWithPlaceholder/ErrorPlaceHolder';
 import Loader from '../../../components/common/Loader/Loader';
+import { PagingHandlerParams } from '../../../components/common/NextPrevious/NextPrevious.interface';
+import Table from '../../../components/common/Table/Table';
 import PageLayoutV1 from '../../../components/PageLayoutV1/PageLayoutV1';
 import { useEntityExportModalProvider } from '../../../components/Entity/EntityExportModalProvider/EntityExportModalProvider.component';
 import { ERROR_PLACEHOLDER_TYPE } from '../../../enums/common.enum';
 import { ExportTypes } from '../../../constants/Export.constants';
+import { PLACEHOLDER_ROUTE_FQN, ROUTES } from '../../../constants/constants';
 import { AssetAttribute } from '../../../generated/entity/data/asset/assetAttribute';
+import { Role } from '../../../generated/entity/teams/role';
+import { Paging } from '../../../generated/type/paging';
+import { usePaging } from '../../../hooks/paging/usePaging';
 import {
   createAssetAttribute,
   deleteAssetAttributeByName,
   exportAssetAttributes,
+  importAssetAttributes,
   getAssetAttributesList,
   patchAssetAttributeByName,
 } from '../../../rest/assetAPI';
+import { getRoles } from '../../../rest/rolesAPIV1';
 
 import './asset-page.less';
 
@@ -80,15 +91,24 @@ const AssetAttributePage: React.FC = () => {
   const { showModal } = useEntityExportModalProvider();
   const [form] = Form.useForm();
 
+  const {
+    pageSize,
+    currentPage,
+    handlePageChange,
+    handlePageSizeChange,
+    handlePagingChange,
+    showPagination,
+    paging,
+  } = usePaging();
+
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [assetAttributes, setAssetAttributes] = useState<AssetAttribute[]>([]);
   const [searchText, setSearchText] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<
     string | undefined
   >();
   const [error, setError] = useState<AxiosError | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
 
   // Modal states
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -97,45 +117,73 @@ const AssetAttributePage: React.FC = () => {
     useState<AssetAttribute | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchAssetAttributes = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const params: Record<string, unknown> = {
-        limit: pageSize,
-        page: currentPage,
-      };
-      if (selectedCategory) {
-        params.attributeCategory = selectedCategory;
-      }
+  // 导入 Modal 状态
+  const [isImportModalVisible, setIsImportModalVisible] = useState(false);
+  const [importFileList, setImportFileList] = useState<AntUploadFile[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
 
-      const response = await getAssetAttributesList(params);
-      setAssetAttributes(response.data || []);
+  const fetchAssetAttributes = useCallback(
+    async (params?: Partial<Paging>) => {
+      setLoadingMore(true);
+      setError(null);
+      try {
+        const requestParams: Record<string, unknown> = {
+          ...params,
+          limit: pageSize,
+          fields: 'assignableRoles',
+        };
+        if (selectedCategory) {
+          requestParams.attributeCategory = selectedCategory;
+        }
+        if (searchText) {
+          requestParams.nameSearch = searchText;
+        }
+
+        const response = await getAssetAttributesList(requestParams);
+        setAssetAttributes(response.data || []);
+        handlePagingChange(response.paging);
+      } catch (err) {
+        setError(err as AxiosError);
+      } finally {
+        setLoadingMore(false);
+        setIsLoading(false);
+      }
+    },
+    [pageSize, selectedCategory, searchText]
+  );
+
+  const fetchRoles = useCallback(async () => {
+    try {
+      const response = await getRoles('', undefined, undefined, false, 100);
+      setRoles(response.data || []);
     } catch (err) {
-      setError(err as AxiosError);
-    } finally {
-      setIsLoading(false);
+      console.error('Error fetching roles:', err);
     }
-  }, [currentPage, pageSize, selectedCategory]);
+  }, []);
 
   useEffect(() => {
     fetchAssetAttributes();
-  }, [fetchAssetAttributes]);
+    fetchRoles();
+  }, [fetchAssetAttributes, fetchRoles]);
+
+  const onPageChange = useCallback(
+    ({ cursorType, currentPage }: PagingHandlerParams) => {
+      if (cursorType) {
+        fetchAssetAttributes({ [cursorType]: paging[cursorType] });
+        handlePageChange(currentPage);
+      }
+    },
+    [paging, pageSize]
+  );
 
   const handleSearch = (value: string) => {
-    setSearchText(value);
+    setSearchText(value.trim());
   };
 
   const handleCategoryChange = (value: string) => {
     setSelectedCategory(value);
-    setCurrentPage(1); // 重置到第一页
-  };
-
-  const handleTableChange = (pagination: unknown) => {
-    const page = (pagination as { current?: number })?.current || 1;
-    const size = (pagination as { pageSize?: number })?.pageSize || 10;
-    setCurrentPage(page);
-    setPageSize(size);
   };
 
   // 添加属性
@@ -147,6 +195,7 @@ const AssetAttributePage: React.FC = () => {
       attributeCategory: 'basic',
       dataType: 'string',
       required: false,
+      assignableRoles: [],
     });
     setIsModalVisible(true);
   };
@@ -160,10 +209,73 @@ const AssetAttributePage: React.FC = () => {
     });
   }, [showModal]);
 
-  // 导入资产属性 — 跳转到导入页面
+  // 导入资产属性 — 打开导入弹窗
   const handleImport = useCallback(() => {
-    history.push('/assetAttributes/import');
-  }, [history]);
+    setImportFileList([]);
+    setImportResult(null);
+    setIsImportModalVisible(true);
+  }, []);
+
+  // 处理导入提交
+  const handleImportSubmit = useCallback(
+    async (dryRun: boolean) => {
+      if (importFileList.length === 0) {
+        message.warning(t('message.select-csv-file'));
+
+        return;
+      }
+
+      const file = importFileList[0].originFileObj;
+      if (!file) {
+        message.warning(t('message.select-csv-file'));
+
+        return;
+      }
+
+      setIsImporting(true);
+      setImportResult(null);
+      try {
+        const csvText = await file.text();
+        const result = await importAssetAttributes(
+          'assetAttributes',
+          csvText,
+          dryRun
+        );
+
+        if (dryRun) {
+          // 预览模式：显示校验结果
+          const successCount = result?.numberOfRowsPassed ?? 0;
+          const failCount = result?.numberOfRowsFailed ?? 0;
+          setImportResult(
+            `${t('label.validation-result')}: ${successCount} ${t(
+              'label.success-lowercase'
+            )}, ${failCount} ${t('label.failed-lowercase')}`
+          );
+          if (failCount === 0 && successCount > 0) {
+            message.success(t('message.validation-passed'));
+          } else if (failCount > 0) {
+            message.warning(t('message.validation-has-errors'));
+          }
+        } else {
+          // 正式导入
+          message.success(t('message.import-success'));
+          setIsImportModalVisible(false);
+          setImportFileList([]);
+          setImportResult(null);
+          await fetchAssetAttributes();
+        }
+      } catch (error: any) {
+        // eslint-disable-next-line no-console
+        console.error('Import failed:', error);
+        const errMsg =
+          error.response?.data?.message || t('message.import-failed');
+        message.error(errMsg);
+      } finally {
+        setIsImporting(false);
+      }
+    },
+    [importFileList, t, fetchAssetAttributes]
+  );
 
   // 编辑属性
   const handleEdit = (record: AssetAttribute) => {
@@ -176,6 +288,7 @@ const AssetAttributePage: React.FC = () => {
       attributeCategory: record.attributeCategory,
       dataType: record.dataType,
       required: record.required || false,
+      assignableRoles: record.assignableRoles || [],
     });
     setIsModalVisible(true);
   };
@@ -194,11 +307,12 @@ const AssetAttributePage: React.FC = () => {
         try {
           await deleteAssetAttributeByName(record.name, false, true);
           await fetchAssetAttributes();
-          message.success(t('message.entity-deleted-successfully'));
+          message.success(t('message.entity-deleted-successfully', { entity: t('label.asset-attribute') }));
         } catch (error: any) {
           // eslint-disable-next-line no-console
           console.error('Delete failed:', error);
-          const errMsg = error.response?.data?.message || t('message.delete-failed');
+          const errMsg =
+            error.response?.data?.message || t('message.delete-failed');
           message.error(errMsg);
         }
       },
@@ -219,8 +333,9 @@ const AssetAttributePage: React.FC = () => {
           attributeCategory: values.attributeCategory,
           dataType: values.dataType,
           required: values.required,
+          assignableRoles: values.assignableRoles,
         });
-        message.success(t('message.entity-created-successfully'));
+        message.success(t('message.entity-created-successfully', { entity: t('label.asset-attribute') }));
       } else if (modalMode === 'edit' && selectedAttribute) {
         const updatedAttribute = {
           ...selectedAttribute,
@@ -229,12 +344,13 @@ const AssetAttributePage: React.FC = () => {
           attributeCategory: values.attributeCategory,
           dataType: values.dataType,
           required: values.required,
+          assignableRoles: values.assignableRoles,
         };
         const patch = compare(selectedAttribute, updatedAttribute);
 
         if (patch.length > 0) {
           await patchAssetAttributeByName(selectedAttribute.name, patch);
-          message.success(t('message.entity-updated-successfully'));
+          message.success(t('message.entity-updated-successfully', { entity: t('label.asset-attribute') }));
         }
       }
 
@@ -244,7 +360,8 @@ const AssetAttributePage: React.FC = () => {
     } catch (error: any) {
       // eslint-disable-next-line no-console
       console.error('Submit failed:', error);
-      const errMsg = error.response?.data?.message || t('message.submit-failed');
+      const errMsg =
+        error.response?.data?.message || t('message.submit-failed');
       message.error(errMsg);
     } finally {
       setIsSubmitting(false);
@@ -261,9 +378,10 @@ const AssetAttributePage: React.FC = () => {
         <Space direction="vertical" size={0}>
           <Link
             className="font-bold text-primary cursor-pointer"
-            to={`/assets/attributes/${encodeURIComponent(
-              record.fullyQualifiedName || record.name
-            )}`}>
+            to={ROUTES.ASSET_ATTRIBUTE_DETAILS.replace(
+              PLACEHOLDER_ROUTE_FQN,
+              encodeURIComponent(record.fullyQualifiedName || record.name)
+            )}>
             {record.displayName || text}
           </Link>
           <div className="text-xs text-grey-muted">{text}</div>
@@ -325,6 +443,27 @@ const AssetAttributePage: React.FC = () => {
       ),
     },
     {
+      title: t('label.filler-personnel', '填写人员'),
+      dataIndex: 'assignableRoles',
+      key: 'assignableRoles',
+      width: 150,
+      render: (assignableRoles: string[]) => (
+        <Space wrap size={[0, 4]}>
+          {assignableRoles?.length > 0
+            ? assignableRoles.map((roleName) => {
+                const matchedRole = roles.find((r) => r.name === roleName);
+
+                return (
+                  <Tag key={roleName}>
+                    {matchedRole?.displayName || roleName}
+                  </Tag>
+                );
+              })
+            : '-'}
+        </Space>
+      ),
+    },
+    {
       title: t('label.action-plural'),
       key: 'actions',
       width: 120,
@@ -352,19 +491,7 @@ const AssetAttributePage: React.FC = () => {
     },
   ];
 
-  const filteredAttributes = assetAttributes.filter((attr) => {
-    if (searchText) {
-      const searchLower = searchText.toLowerCase();
-
-      return (
-        attr.name.toLowerCase().includes(searchLower) ||
-        (attr.displayName || '').toLowerCase().includes(searchLower) ||
-        (attr.description || '').toLowerCase().includes(searchLower)
-      );
-    }
-
-    return true;
-  });
+  // 搜索已由后端处理，无需前端过滤
 
   const pageHeader = (
     <Row align="middle" gutter={[16, 16]} justify="space-between">
@@ -392,7 +519,6 @@ const AssetAttributePage: React.FC = () => {
           placeholder={t('label.search-asset-attributes')}
           prefix={<SearchIcon />}
           style={{ width: '100%' }}
-          onChange={(e) => handleSearch(e.target.value)}
           onSearch={handleSearch}
         />
       </Col>
@@ -445,22 +571,20 @@ const AssetAttributePage: React.FC = () => {
           <Table
             className="asset-attribute-table"
             columns={columns}
-            dataSource={filteredAttributes}
-            pagination={{
-              current: currentPage,
-              pageSize: pageSize,
-              total: filteredAttributes.length,
-              showSizeChanger: true,
-              showTotal: (total, range) =>
-                t('label.showing-range-of-total', {
-                  start: range[0],
-                  end: range[1],
-                  total: total,
-                }),
-              pageSizeOptions: ['10', '20', '50', '100'],
+            customPaginationProps={{
+              showPagination,
+              currentPage,
+              isLoading: loadingMore,
+              pageSize,
+              paging,
+              pagingHandler: onPageChange,
+              onShowSizeChange: handlePageSizeChange,
             }}
+            dataSource={assetAttributes}
+            loading={loadingMore}
+            pagination={false}
             rowKey="id"
-            onChange={handleTableChange}
+            size="small"
           />
         )}
 
@@ -572,7 +696,87 @@ const AssetAttributePage: React.FC = () => {
               valuePropName="checked">
               <Switch />
             </Form.Item>
+            <Form.Item
+              label={t('label.filler-personnel', '填写人员')}
+              name="assignableRoles"
+              rules={[{ type: 'array' }]}>
+              <Select
+                mode="multiple"
+                placeholder={t('label.select-roles', '请选择填写人员（角色）')}>
+                {roles.map((role) => (
+                  <Option key={role.name} value={role.name}>
+                    {role.displayName || role.name}
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
           </Form>
+        </Modal>
+
+        {/* 导入资产属性 CSV Modal */}
+        <Modal
+          confirmLoading={isImporting}
+          footer={[
+            <Button
+              key="cancel"
+              onClick={() => {
+                setIsImportModalVisible(false);
+                setImportFileList([]);
+                setImportResult(null);
+              }}>
+              {t('label.cancel')}
+            </Button>,
+            <Button
+              disabled={importFileList.length === 0}
+              key="validate"
+              loading={isImporting}
+              onClick={() => handleImportSubmit(true)}>
+              {t('label.validate')}
+            </Button>,
+            <Button
+              disabled={importFileList.length === 0}
+              key="import"
+              loading={isImporting}
+              type="primary"
+              onClick={() => handleImportSubmit(false)}>
+              {t('label.import')}
+            </Button>,
+          ]}
+          open={isImportModalVisible}
+          title={t('label.import-entity', {
+            entity: t('label.asset-attribute'),
+          })}
+          width={600}
+          onCancel={() => {
+            setIsImportModalVisible(false);
+            setImportFileList([]);
+            setImportResult(null);
+          }}>
+          <Space className="w-full" direction="vertical" size="large">
+            <Upload.Dragger
+              accept=".csv"
+              beforeUpload={() => false}
+              fileList={importFileList}
+              maxCount={1}
+              onChange={({ fileList }) => {
+                setImportFileList(fileList);
+                setImportResult(null);
+              }}
+              onRemove={() => {
+                setImportFileList([]);
+                setImportResult(null);
+              }}>
+              <p className="ant-upload-text">{t('message.upload-csv-file')}</p>
+              <p className="ant-upload-hint">
+                {t('message.import-entity-help', {
+                  entity: t('label.asset-attribute-plural'),
+                })}
+              </p>
+            </Upload.Dragger>
+            {importResult && (
+              <Typography.Text type="secondary">{importResult}</Typography.Text>
+            )}
+          </Space>
         </Modal>
       </div>
     </PageLayoutV1>

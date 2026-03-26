@@ -11,6 +11,25 @@
  *  limitations under the License.
  */
 
+@import url('../../../styles/variables.less');
+
+// 与 Glossary 模块保持一致：为 Tab 面板设置可滚动区域
+.glossary-page-tabs {
+  .ant-tabs-tabpane {
+    height: @glossary-page-height;
+    overflow-y: auto;
+
+    .activity-feed-tab {
+      height: 100%;
+
+      .right-container,
+      .center-container {
+        height: 100%;
+      }
+    }
+  }
+}
+
 .asset-catalog-page {
   height: 100%;
 
@@ -64,3 +83,9 @@
     }
   }
 }
+
+.right-panel-title {
+  font-weight: 500;
+  font-size: 14px;
+}
+

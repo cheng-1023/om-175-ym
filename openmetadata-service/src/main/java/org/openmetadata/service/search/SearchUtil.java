@@ -48,7 +48,9 @@ public class SearchUtil {
           "api_collection_search_index",
           Entity.API_COLLCECTION,
           "api_endpoint_search_index",
-          Entity.API_ENDPOINT -> true;
+          Entity.API_ENDPOINT,
+          "data_asset_search_index",
+          Entity.DATA_ASSET -> true;
       default -> false;
     };
   }

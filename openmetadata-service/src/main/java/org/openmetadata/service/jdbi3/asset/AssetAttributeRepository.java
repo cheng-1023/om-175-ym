@@ -17,15 +17,6 @@
 
 package org.openmetadata.service.jdbi3.asset;
 
-import static org.openmetadata.csv.CsvUtil.addExtension;
-import static org.openmetadata.csv.CsvUtil.addOwners;
-import static org.openmetadata.csv.CsvUtil.addReviewers;
-import static org.openmetadata.csv.CsvUtil.addTagLabels;
-import static org.openmetadata.csv.CsvUtil.addField;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
 import org.openmetadata.csv.EntityCsv;
@@ -43,10 +34,17 @@ import org.openmetadata.service.jdbi3.Repository;
 import org.openmetadata.service.resources.asset.AssetAttributeResource;
 import org.openmetadata.service.util.EntityUtil.Fields;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+
+import static org.openmetadata.csv.CsvUtil.addField;
+
 @Repository
 public class AssetAttributeRepository extends EntityRepository<AssetAttribute> {
-  private static final String UPDATE_FIELDS = "";
-  private static final String PATCH_FIELDS = "";
+  private static final String UPDATE_FIELDS = "owners,tags,reviewers,attributeCategory,dataType,required,assignableRoles,domain,extension";
+  private static final String PATCH_FIELDS = "owners,tags,reviewers,attributeCategory,dataType,required,assignableRoles,domain,extension";
 
   public AssetAttributeRepository() {
     super(
@@ -94,11 +92,10 @@ public class AssetAttributeRepository extends EntityRepository<AssetAttribute> {
 
   @Override
   public String exportToCsv(String name, String user, boolean recursive) throws IOException {
-    Fields fields = getFields("owners,tags,reviewers,attributeCategory,dataType,required,assignableRoles,domain,extension");
+    Fields fields = getFields("attributeCategory,dataType,required,assignableRoles");
     List<AssetAttribute> attributes =
         listAll(fields, new ListFilter(Include.NON_DELETED));
-    attributes.sort(
-        (a, b) -> a.getFullyQualifiedName().compareTo(b.getFullyQualifiedName()));
+    attributes.sort(Comparator.comparing(AssetAttribute::getFullyQualifiedName));
     return new AssetAttributeCsv(user).exportCsv(attributes);
   }
 
@@ -110,7 +107,7 @@ public class AssetAttributeRepository extends EntityRepository<AssetAttribute> {
   }
 
   /** CSV 导入导出内部类 */
-  public class AssetAttributeCsv extends EntityCsv<AssetAttribute> {
+  public static class AssetAttributeCsv extends EntityCsv<AssetAttribute> {
     public static final CsvDocumentation DOCUMENTATION =
         getCsvDocumentation(Entity.ASSET_ATTRIBUTE, false);
     public static final List<CsvHeader> HEADERS = DOCUMENTATION.getHeaders();
@@ -122,17 +119,17 @@ public class AssetAttributeRepository extends EntityRepository<AssetAttribute> {
     @Override
     protected void createEntity(CSVPrinter printer, List<CSVRecord> csvRecords) throws IOException {
       CSVRecord csvRecord = getNextRecord(printer, csvRecords);
+      if (csvRecord == null) {
+        return; // getNextRecord 内部已记录了导入失败信息
+      }
       AssetAttribute attribute = new AssetAttribute()
           .withName(csvRecord.get(0))
           .withDisplayName(csvRecord.get(1))
           .withDescription(csvRecord.get(2))
-          .withAttributeCategory(AssetAttribute.AttributeCategory.valueOf(csvRecord.get(3)))
-          .withDataType(AssetAttribute.DataType.valueOf(csvRecord.get(4)))
+          .withAttributeCategory(AssetAttribute.AttributeCategory.fromValue(csvRecord.get(3)))
+          .withDataType(AssetAttribute.DataType.fromValue(csvRecord.get(4)))
           .withRequired(Boolean.parseBoolean(csvRecord.get(5)))
-          .withTags(getTagLabels(printer, csvRecord, List.of()))
-          .withReviewers(getReviewers(printer, csvRecord, 7))
-          .withOwners(getOwners(printer, csvRecord, 8))
-          .withExtension(getExtension(printer, csvRecord, 10));
+          .withAssignableRoles(org.openmetadata.csv.CsvUtil.fieldToStrings(csvRecord.get(6)));
 
       if (processRecord) {
         createEntity(printer, csvRecord, attribute, Entity.ASSET_ATTRIBUTE);
@@ -148,10 +145,7 @@ public class AssetAttributeRepository extends EntityRepository<AssetAttribute> {
       addField(recordList, entity.getAttributeCategory().value());
       addField(recordList, entity.getDataType().value());
       addField(recordList, entity.getRequired());
-      addTagLabels(recordList, entity.getTags());
-      addReviewers(recordList, entity.getReviewers());
-      addOwners(recordList, entity.getOwners());
-      addExtension(recordList, entity.getExtension());
+      addField(recordList, String.join(org.openmetadata.csv.CsvUtil.FIELD_SEPARATOR, org.openmetadata.common.utils.CommonUtil.listOrEmpty(entity.getAssignableRoles())));
       addRecord(csvFile, recordList);
     }
   }
@@ -161,6 +155,14 @@ public class AssetAttributeRepository extends EntityRepository<AssetAttribute> {
     public AssetAttributeUpdater(
         AssetAttribute original, AssetAttribute updated, Operation operation) {
       super(original, updated, operation);
+    }
+
+    @Override
+    public void entitySpecificUpdate(boolean consolidatingChanges) {
+      recordChange("attributeCategory", original.getAttributeCategory(), updated.getAttributeCategory());
+      recordChange("dataType", original.getDataType(), updated.getDataType());
+      recordChange("required", original.getRequired(), updated.getRequired());
+      recordChange("assignableRoles", original.getAssignableRoles(), updated.getAssignableRoles());
     }
   }
 }

@@ -53,6 +53,8 @@ import org.openmetadata.schema.type.EntityHistory;
 import org.openmetadata.schema.type.Include;
 import org.openmetadata.schema.type.MetadataOperation;
 import org.openmetadata.schema.type.csv.CsvImportResult;
+import org.openmetadata.schema.api.VoteRequest;
+import org.openmetadata.schema.type.ChangeEvent;
 import org.openmetadata.service.util.JsonUtils;
 import org.openmetadata.service.Entity;
 import org.openmetadata.service.jdbi3.ListFilter;
@@ -68,7 +70,7 @@ import org.openmetadata.service.util.ResultList;
 @Tag(name = "DataAssets", description = "数据资产管理 API，支持动态属性和角色权限控制。")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
-@Collection(name = "dataAssets", order = 9)
+@Collection(name = "dataAssets")
 public class DataAssetResource extends EntityResource<DataAsset, DataAssetRepository> {
   public static final String COLLECTION_PATH = "v1/dataAssets/";
   static final String FIELDS =
@@ -111,8 +113,17 @@ public class DataAssetResource extends EntityResource<DataAsset, DataAssetReposi
       @DefaultValue("10") @Min(0) @Max(1000000) @QueryParam("limit") int limitParam,
       @QueryParam("before") String before,
       @QueryParam("after") String after,
-      @QueryParam("include") Include include) {
-    return listInternal(uriInfo, securityContext, fieldsParam, new ListFilter(include), limitParam, before, after);
+      @QueryParam("include") Include include,
+      @Parameter(description = "按资产类型ID筛选") @QueryParam("assetType") String assetType,
+      @Parameter(description = "按资产目录ID筛选") @QueryParam("catalog") String catalog) {
+    ListFilter filter = new ListFilter(include);
+    if (assetType != null) {
+      filter.addQueryParam("assetType", assetType);
+    }
+    if (catalog != null) {
+      filter.addQueryParam("catalog", catalog);
+    }
+    return listInternal(uriInfo, securityContext, fieldsParam, filter, limitParam, before, after);
   }
 
   @GET
@@ -249,6 +260,33 @@ public class DataAssetResource extends EntityResource<DataAsset, DataAssetReposi
       @QueryParam("recursive") boolean recursive,
       @QueryParam("hardDelete") boolean hardDelete) {
     return super.deleteByName(uriInfo, securityContext, name, recursive, hardDelete);
+  }
+
+  @PUT
+  @Path("/{id}/vote")
+  @Operation(
+      operationId = "updateVoteForEntity",
+      summary = "Update Vote for a Entity",
+      description = "Update vote for a Entity",
+      responses = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "OK",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = ChangeEvent.class))),
+        @ApiResponse(responseCode = "404", description = "model for instance {id} is not found")
+      })
+  public Response updateVote(
+      @Context UriInfo uriInfo,
+      @Context SecurityContext securityContext,
+      @Parameter(description = "Id of the Entity", schema = @Schema(type = "UUID")) @PathParam("id")
+          UUID id,
+      @Valid VoteRequest request) {
+    return repository
+        .updateVote(securityContext.getUserPrincipal().getName(), id, request)
+        .toResponse();
   }
 
   // ==================== CSV 导入导出 ====================

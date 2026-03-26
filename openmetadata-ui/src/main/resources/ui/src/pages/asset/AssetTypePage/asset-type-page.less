@@ -63,4 +63,28 @@
       }
     }
   }
+
+  // 完全采用类似术语库页面 `.tabs-new` 的全铺满布局
+  // 此时 .ant-tabs-tabpane 自身即作为带着白色背景的圆角卡片
+  .asset-type-page-tabs.tabs-new {
+    .ant-tabs-tabpane {
+      // 计算撑满整页的高度
+      // 160px(外部预留高度) + navbar(顶部导航栏) + 48px(tabs-new tab nav 的高度)
+      height: calc(100vh - 160px - var(--ant-navbar-height) - 48px);
+      overflow-y: auto; // 滚动条自然内嵌在这个带圆角白底容器内
+      
+      // 为内部直接包裹的元素增加统一 padding
+      & > .ant-table-wrapper {
+        padding: 16px; 
+      }
+
+      .activity-feed-wrapper {
+        height: 100%; // 这里保证 ActivityFeedTab 可以获取 100% 高度
+        
+        .activity-feed-tab {
+          height: 100%;
+        }
+      }
+    }
+  }
 }

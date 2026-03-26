@@ -15,7 +15,7 @@ import { AxiosError } from 'axios';
 import { compare } from 'fast-json-patch';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useHistory, useParams } from 'react-router-dom';
+import { Link, useHistory, useParams } from 'react-router-dom';
 import { ItemType } from 'antd/lib/menu/hooks/useItems';
 import { Menu } from 'antd';
 import {
@@ -42,9 +42,19 @@ import { ReactComponent as ExportIcon } from '../../../assets/svg/ic-export.svg'
 import { ReactComponent as ImportIcon } from '../../../assets/svg/ic-import.svg';
 import { ReactComponent as VersionIcon } from '../../../assets/svg/ic-version.svg';
 import { ReactComponent as IconDropdown } from '../../../assets/svg/menu.svg';
-import Icon, { LikeOutlined, DislikeOutlined } from '@ant-design/icons';
+import Icon from '@ant-design/icons';
 import { ManageButtonItemLabel } from '../../../components/common/ManageButtonContentItem/ManageButtonContentItem.component';
 import ButtonGroup from 'antd/lib/button/button-group';
+import ActivityFeedProvider from '../../../components/ActivityFeed/ActivityFeedProvider/ActivityFeedProvider';
+import { ActivityFeedTab } from '../../../components/ActivityFeed/ActivityFeedTab/ActivityFeedTab.component';
+import { ActivityFeedLayoutType } from '../../../components/ActivityFeed/ActivityFeedTab/ActivityFeedTab.interface';
+import TabsLabel from '../../../components/common/TabsLabel/TabsLabel.component';
+import { FEED_COUNT_INITIAL_DATA } from '../../../constants/entity.constants';
+import { useApplicationStore } from '../../../hooks/useApplicationStore';
+import { FeedCounts } from '../../../interface/feed.interface';
+import { getFeedCounts } from '../../../utils/CommonUtils';
+import { Upload } from 'antd';
+import type { UploadFile as AntUploadFile } from 'antd/lib/upload/interface';
 import ErrorPlaceHolder from '../../../components/common/ErrorWithPlaceholder/ErrorPlaceHolder';
 import Loader from '../../../components/common/Loader/Loader';
 import ResizableLeftPanels from '../../../components/common/ResizablePanels/ResizableLeftPanels';
@@ -57,13 +67,17 @@ import {
   createAssetType,
   deleteAssetTypeByName,
   exportAssetTypes,
+  importAssetTypes,
   getAssetAttributesList,
   getAssetTypesList,
   patchAssetTypeByName,
+  updateAssetTypeVotes,
 } from '../../../rest/assetAPI';
 import { AssetType } from '../../../generated/entity/data/asset/assetType';
 import { AssetAttribute } from '../../../generated/entity/data/asset/assetAttribute';
 import { AttributeCategory } from '../../../generated/entity/data/asset/assetAttribute';
+import Voting from '../../../components/Entity/Voting/Voting.component';
+import { VotingDataProps } from '../../../components/Entity/Voting/voting.interface';
 import './asset-type-page.less';
 
 const { TextArea } = Input;
@@ -80,6 +94,10 @@ const AssetTypePage: React.FC = () => {
   const history = useHistory();
   const { fqn: routeFqn } = useParams<{ fqn?: string }>();
   const { showModal } = useEntityExportModalProvider();
+  const { currentUser } = useApplicationStore();
+  const [feedCount, setFeedCount] = useState<FeedCounts>(
+    FEED_COUNT_INITIAL_DATA
+  );
 
   // 数据加载状态
   const [isLoadingTypes, setIsLoadingTypes] = useState(true);
@@ -119,6 +137,12 @@ const AssetTypePage: React.FC = () => {
   >([]);
   const [isAddingAttribute, setIsAddingAttribute] = useState(false);
 
+  // 导入 Modal 状态
+  const [isImportModalVisible, setIsImportModalVisible] = useState(false);
+  const [importFileList, setImportFileList] = useState<AntUploadFile[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
+
   // 获取资产类型列表
   const fetchAssetTypes = useCallback(async () => {
     setIsLoadingTypes(true);
@@ -130,6 +154,17 @@ const AssetTypePage: React.FC = () => {
       });
       const typesData = response.data || [];
       setAssetTypes(typesData);
+
+      // 同步更新当前选中的资产类型，确保属性列表实时刷新
+      setSelectedType((prev) => {
+        if (prev) {
+          const updated = typesData.find((t: AssetType) => t.id === prev.id);
+
+          return updated || prev;
+        }
+
+        return prev;
+      });
 
       return typesData;
     } catch (err) {
@@ -194,6 +229,23 @@ const AssetTypePage: React.FC = () => {
     initLoad();
   }, [routeFqn]); // 仅在 routeFqn 变化时重新初始化
 
+  // 获取活动信息流数量
+  const getEntityFeedCount = useCallback(() => {
+    if (selectedType) {
+      getFeedCounts(
+        'assetType' as any,
+        selectedType.fullyQualifiedName || selectedType.name,
+        setFeedCount
+      );
+    }
+  }, [selectedType]);
+
+  useEffect(() => {
+    if (selectedType) {
+      getEntityFeedCount();
+    }
+  }, [selectedType, getEntityFeedCount]);
+
   // 处理类型选择（更新 URL）
   const handleTypeClick = useCallback(
     (type: AssetType) => {
@@ -246,7 +298,7 @@ const AssetTypePage: React.FC = () => {
         try {
           await deleteAssetTypeByName(type.name, false, true);
           await fetchAssetTypes();
-          message.success(t('message.entity-deleted-successfully'));
+          message.success(t('message.entity-deleted-successfully', { entity: t('label.asset-type') }));
         } catch (error: any) {
           // eslint-disable-next-line no-console
           console.error('Delete failed:', error);
@@ -275,7 +327,7 @@ const AssetTypePage: React.FC = () => {
           displayName: formData.displayName,
           description: formData.description,
         });
-        message.success(t('message.entity-created-successfully'));
+        message.success(t('message.entity-created-successfully', { entity: t('label.asset-type') }));
       } else if (typeModalMode === 'edit' && selectedTypeForEdit) {
         const patch = compare(selectedTypeForEdit, {
           ...selectedTypeForEdit,
@@ -285,7 +337,7 @@ const AssetTypePage: React.FC = () => {
 
         if (patch.length > 0) {
           await patchAssetTypeByName(selectedTypeForEdit.name, patch);
-          message.success(t('message.entity-updated-successfully'));
+          message.success(t('message.entity-updated-successfully', { entity: t('label.asset-type') }));
         }
       }
 
@@ -336,7 +388,7 @@ const AssetTypePage: React.FC = () => {
           },
         ]);
 
-        message.success(t('message.entity-updated-successfully'));
+        message.success(t('message.add-attribute-success'));
         await fetchAssetTypes();
         setIsAddAttributeModalVisible(false);
         setSelectedAttributeToAdd([]);
@@ -370,6 +422,47 @@ const AssetTypePage: React.FC = () => {
     setIsAddAttributeModalVisible(true);
   };
 
+  // 从资产类型中移除属性
+  const handleRemoveAttribute = async (attrToRemove: AssetAttribute) => {
+    if (!selectedType) {
+      return;
+    }
+
+    Modal.confirm({
+      title: t('label.delete-entity', { entity: t('label.asset-attribute') }),
+      content: t('message.remove-attribute-confirmation', {
+        name: attrToRemove.displayName || attrToRemove.name,
+      }),
+      okText: t('label.delete'),
+      okType: 'danger',
+      cancelText: t('label.cancel'),
+      onOk: async () => {
+        try {
+          const currentAttributes = selectedType.attributes || [];
+          const newAttributes = currentAttributes.filter(
+            (attr) => attr.id !== attrToRemove.id
+          );
+
+          await patchAssetTypeByName(selectedType.name, [
+            {
+              op: 'replace',
+              path: '/attributes',
+              value: newAttributes,
+            },
+          ]);
+
+          message.success(t('message.remove-attribute-success'));
+          await fetchAssetTypes();
+        } catch (error: any) {
+          console.error('Remove attribute failed:', error);
+          const errMsg =
+            error.response?.data?.message || t('message.delete-failed');
+          message.error(errMsg);
+        }
+      },
+    });
+  };
+
   // 导出资产类型属性配置 — 使用 EntityExportModalProvider 通用导出组件
   const handleExportAttributes = useCallback(() => {
     if (selectedType) {
@@ -381,17 +474,93 @@ const AssetTypePage: React.FC = () => {
     }
   }, [selectedType, showModal]);
 
-  // 导入资产类型属性配置 — 跳转到导入页面
+  // 导入资产类型属性配置 — 打开导入弹窗
   const handleImportAttributes = useCallback(() => {
     if (selectedType) {
-      const fqn = selectedType.fullyQualifiedName || selectedType.name;
-      history.push(`/assetTypes/${encodeURIComponent(fqn)}/import`);
+      setImportFileList([]);
+      setImportResult(null);
+      setIsImportModalVisible(true);
     }
-  }, [selectedType, history]);
+  }, [selectedType]);
+
+  // 处理导入提交
+  const handleImportSubmit = useCallback(
+    async (dryRun: boolean) => {
+      if (!selectedType || importFileList.length === 0) {
+        message.warning(t('message.select-csv-file'));
+
+        return;
+      }
+
+      const file = importFileList[0].originFileObj;
+      if (!file) {
+        message.warning(t('message.select-csv-file'));
+
+        return;
+      }
+
+      setIsImporting(true);
+      setImportResult(null);
+      try {
+        const csvText = await file.text();
+        const fqn = selectedType.fullyQualifiedName || selectedType.name;
+        const result = await importAssetTypes(fqn, csvText, dryRun);
+
+        if (dryRun) {
+          // 预览模式：显示校验结果
+          const successCount = (result as any)?.numberOfRowsPassed ?? 0;
+          const failCount = (result as any)?.numberOfRowsFailed ?? 0;
+          setImportResult(
+            `${t('label.validation-result')}: ${successCount} ${t(
+              'label.success-lowercase'
+            )}, ${failCount} ${t('label.failed-lowercase')}`
+          );
+          if (failCount === 0 && successCount > 0) {
+            message.success(t('message.validation-passed'));
+          } else if (failCount > 0) {
+            message.warning(t('message.validation-has-errors'));
+          }
+        } else {
+          // 正式导入
+          message.success(t('message.import-success'));
+          setIsImportModalVisible(false);
+          setImportFileList([]);
+          setImportResult(null);
+          await Promise.all([fetchAssetTypes(), fetchAllAttributes()]);
+        }
+      } catch (error: any) {
+        console.error('Import failed:', error);
+        const errMsg =
+          error.response?.data?.message || t('message.import-failed');
+        message.error(errMsg);
+      } finally {
+        setIsImporting(false);
+      }
+    },
+    [selectedType, importFileList, t, fetchAssetTypes, fetchAllAttributes]
+  );
+
+  // 点赞逻辑
+  const handleUpdateVote = async (data: VotingDataProps, id: string) => {
+    try {
+      await updateAssetTypeVotes(id, data);
+      await fetchAssetTypes();
+    } catch (error) {
+      message.error(t('message.entity-update-error'));
+    }
+  };
 
   // 版本历史
   const handleVersionHistory = () => {
-    message.info(t('message.feature-coming-soon'));
+    if (!selectedType) {
+      return;
+    }
+    history.push(
+      ROUTES.ASSET_TYPE_VERSION.replace(
+        PLACEHOLDER_ROUTE_FQN,
+        selectedType.fullyQualifiedName || selectedType.name
+      )
+    );
   };
 
   // 获取选中类型的属性详情
@@ -447,6 +616,7 @@ const AssetTypePage: React.FC = () => {
       })`,
       children: (
         <Table
+          className="p-md"
           columns={[
             {
               title: t('label.name'),
@@ -455,20 +625,16 @@ const AssetTypePage: React.FC = () => {
               width: 200,
               render: (text: string, record: AssetAttribute) => (
                 <Space direction="vertical" size={0}>
-                  <div
-                    className="font-bold text-blue-600 cursor-pointer hover:text-blue-800"
-                    onClick={() => {
-                      history.push(
-                        ROUTES.ASSET_ATTRIBUTE_DETAILS.replace(
-                          PLACEHOLDER_ROUTE_FQN,
-                          encodeURIComponent(
-                            record.fullyQualifiedName || record.name
-                          )
-                        )
-                      );
-                    }}>
+                  <Link
+                    className="font-bold"
+                    to={ROUTES.ASSET_ATTRIBUTE_DETAILS.replace(
+                      PLACEHOLDER_ROUTE_FQN,
+                      encodeURIComponent(
+                        record.fullyQualifiedName || record.name
+                      )
+                    )}>
                     {record.displayName || text}
-                  </div>
+                  </Link>
                   <div className="text-xs text-grey-muted">{text}</div>
                 </Space>
               ),
@@ -485,7 +651,11 @@ const AssetTypePage: React.FC = () => {
               dataIndex: 'dataType',
               key: 'dataType',
               width: 120,
-              render: (dataType: string) => <Tag color="blue">{dataType}</Tag>,
+              render: (dataType: string) => (
+                <Tag color="blue">
+                  {t(`label.asset-data-type-${dataType}`, dataType)}
+                </Tag>
+              ),
             },
             {
               title: t('label.required'),
@@ -493,9 +663,25 @@ const AssetTypePage: React.FC = () => {
               key: 'required',
               width: 100,
               render: (required: boolean) => (
-                <Tag color={required ? 'red' : 'green'}>
+                <Tag color={required ? 'error' : 'default'}>
                   {required ? t('label.yes') : t('label.no')}
                 </Tag>
+              ),
+            },
+            {
+              title: t('label.action-plural'),
+              key: 'actions',
+              width: 80,
+              render: (_: unknown, record: AssetAttribute) => (
+                <Tooltip title={t('label.delete')}>
+                  <Button
+                    danger
+                    icon={<DeleteIcon height={16} width={16} />}
+                    size="small"
+                    type="text"
+                    onClick={() => handleRemoveAttribute(record)}
+                  />
+                </Tooltip>
               ),
             },
           ]}
@@ -520,360 +706,453 @@ const AssetTypePage: React.FC = () => {
   const selectedMenuKey = selectedType?.id || assetTypes[0]?.id || '';
 
   return (
-    <PageLayoutV1 pageTitle={t('label.asset-type-management')}>
-      <ResizableLeftPanels
-        className="content-height-with-resizable-panel"
-        firstPanel={{
-          className: 'content-resizable-panel-container',
-          flex: 0.2,
-          minWidth: 280,
-          title: t('label.asset-type-plural'),
-          children: (
-            <div className="p-x-sm">
-              <Button
-                block
-                className="text-primary mb-md"
-                data-testid="add-asset-type"
-                onClick={handleAddType}>
-                <div className="flex-center">
-                  <PlusIcon className="anticon m-r-xss" />
-                  {t('label.add-entity', { entity: t('label.asset-type') })}
-                </div>
-              </Button>
+    <ActivityFeedProvider user={currentUser?.id}>
+      <PageLayoutV1 pageTitle={t('label.asset-type-management')}>
+        <ResizableLeftPanels
+          className="content-height-with-resizable-panel"
+          firstPanel={{
+            className: 'content-resizable-panel-container',
+            flex: 0.2,
+            minWidth: 280,
+            title: t('label.asset-type-plural'),
+            children: (
+              <div className="p-x-sm">
+                <Button
+                  block
+                  className="text-primary mb-md"
+                  data-testid="add-asset-type"
+                  onClick={handleAddType}>
+                  <div className="flex-center">
+                    <PlusIcon className="anticon m-r-xss" />
+                    {t('label.add-entity', { entity: t('label.asset-type') })}
+                  </div>
+                </Button>
 
-              {isLoadingTypes ? (
-                <Loader />
-              ) : typesError ? (
-                <ErrorPlaceHolder
-                  type={ERROR_PLACEHOLDER_TYPE.CUSTOM}
-                  onClick={fetchAssetTypes}
-                />
-              ) : assetTypes.length === 0 ? (
-                <div className="text-center p-lg">
-                  <p className="text-grey-muted">{t('label.no-types-found')}</p>
-                </div>
-              ) : (
-                <Menu
-                  className="custom-menu"
-                  items={menuItems}
-                  mode="inline"
-                  selectedKeys={[selectedMenuKey]}
-                  onClick={(item) => {
-                    const type = assetTypes.find((t) => t.id === item.key);
-                    if (type) {
-                      handleTypeClick(type);
-                    }
-                  }}
-                />
-              )}
-            </div>
-          ),
-        }}
-        secondPanel={{
-          className: 'content-resizable-panel-container',
-          flex: 0.8,
-          minWidth: 800,
-          children: (
-            <div className="p-lg">
-              {selectedType ? (
-                <>
-                  {/* 头部区域 - 对齐 GlossaryHeader 布局 */}
-                  <div className="glossary-header flex gap-4 justify-between no-wrap p-b-md">
-                    <div className="flex w-min-0 flex-auto">
-                      <Space direction="vertical" size={0}>
-                        <Title className="m-0" level={4}>
-                          {selectedType.displayName || selectedType.name}
-                        </Title>
-                        <Text type="secondary">{selectedType.description}</Text>
-                      </Space>
-                    </div>
-                    <div className="flex items-center">
-                      <div className="d-flex gap-3 justify-end">
-                        {/* 添加资产属性按钮 */}
-                        <Button
-                          className="m-l-xs"
-                          type="primary"
-                          onClick={handleOpenAddAttributeModal}>
-                          {t('label.add-attribute')}
-                        </Button>
-
-                        <ButtonGroup className="spaced" size="small">
-                          {/* 点赞/点踩 - coming soon */}
-                          <Tooltip title={t('label.like')}>
-                            <Button
-                              icon={<LikeOutlined />}
-                              onClick={() =>
-                                message.info(t('message.feature-coming-soon'))
-                              }
-                            />
-                          </Tooltip>
-                          <Tooltip title={t('label.dis-like')}>
-                            <Button
-                              icon={<DislikeOutlined />}
-                              onClick={() =>
-                                message.info(t('message.feature-coming-soon'))
-                              }
-                            />
-                          </Tooltip>
-
-                          {/* 版本历史 */}
-                          <Tooltip title={t('label.version-plural-history')}>
-                            <Button
-                              icon={<Icon component={VersionIcon} />}
-                              onClick={handleVersionHistory}>
-                              <Typography.Text>0.1</Typography.Text>
-                            </Button>
-                          </Tooltip>
-
-                          {/* 管理按钮 */}
-                          <Dropdown
-                            align={{ targetOffset: [-12, 0] }}
+                {isLoadingTypes ? (
+                  <Loader />
+                ) : typesError ? (
+                  <ErrorPlaceHolder
+                    type={ERROR_PLACEHOLDER_TYPE.CUSTOM}
+                    onClick={fetchAssetTypes}
+                  />
+                ) : assetTypes.length === 0 ? (
+                  <div className="text-center p-lg">
+                    <p className="text-grey-muted">
+                      {t('label.no-types-found')}
+                    </p>
+                  </div>
+                ) : (
+                  <Menu
+                    className="custom-menu"
+                    items={menuItems}
+                    mode="inline"
+                    selectedKeys={[selectedMenuKey]}
+                    onClick={(item) => {
+                      const type = assetTypes.find((t) => t.id === item.key);
+                      if (type) {
+                        handleTypeClick(type);
+                      }
+                    }}
+                  />
+                )}
+              </div>
+            ),
+          }}
+          secondPanel={{
+            className: 'content-resizable-panel-container',
+            flex: 0.8,
+            minWidth: 800,
+            children: (
+              <div className="p-lg">
+                {selectedType ? (
+                  <>
+                    {/* 头部区域 - 对齐 GlossaryHeader 布局 */}
+                    <div className="glossary-header flex gap-4 justify-between no-wrap p-b-md">
+                      <div className="flex w-min-0 flex-auto">
+                        <Space direction="vertical" size={0}>
+                          <Title className="m-0" level={4}>
+                            {selectedType.displayName || selectedType.name}
+                          </Title>
+                          <Text type="secondary">
+                            {selectedType.description}
+                          </Text>
+                        </Space>
+                      </div>
+                      <div className="flex items-center">
+                        <div className="d-flex gap-3 justify-end">
+                          {/* 添加资产属性按钮 */}
+                          <Button
                             className="m-l-xs"
-                            menu={{
-                              items: [
-                                {
-                                  label: (
-                                    <ManageButtonItemLabel
-                                      description={t(
-                                        'message.export-entity-help',
-                                        {
-                                          entity: t(
-                                            'label.asset-attribute-plural'
-                                          ),
-                                        }
-                                      )}
-                                      icon={ExportIcon}
-                                      id="export-button"
-                                      name={t('label.export')}
-                                    />
-                                  ),
-                                  key: 'export-button',
-                                  onClick: (e) => {
-                                    e.domEvent.stopPropagation();
-                                    handleExportAttributes();
-                                  },
-                                },
-                                {
-                                  label: (
-                                    <ManageButtonItemLabel
-                                      description={t(
-                                        'message.import-entity-help',
-                                        {
-                                          entity: t(
-                                            'label.asset-attribute-plural'
-                                          ),
-                                        }
-                                      )}
-                                      icon={ImportIcon}
-                                      id="import-button"
-                                      name={t('label.import')}
-                                    />
-                                  ),
-                                  key: 'import-button',
-                                  onClick: (e) => {
-                                    e.domEvent.stopPropagation();
-                                    handleImportAttributes();
-                                  },
-                                },
-                                {
-                                  label: (
-                                    <ManageButtonItemLabel
-                                      description={t('message.rename-entity', {
-                                        entity: t('label.asset-type'),
-                                      })}
-                                      icon={EditIcon}
-                                      id="rename-button"
-                                      name={t('label.rename')}
-                                    />
-                                  ),
-                                  key: 'rename-button',
-                                  onClick: (e) => {
-                                    e.domEvent.stopPropagation();
-                                    handleEditType(selectedType);
-                                  },
-                                },
-                                {
-                                  label: (
-                                    <ManageButtonItemLabel
-                                      description={t(
-                                        'message.delete-entity-type-action-description',
-                                        {
-                                          entityType: t('label.asset-type'),
-                                        }
-                                      )}
-                                      icon={DeleteIcon}
-                                      id="delete-button"
-                                      name={t('label.delete')}
-                                    />
-                                  ),
-                                  key: 'delete-button',
-                                  onClick: (e) => {
-                                    e.domEvent.stopPropagation();
-                                    handleDeleteType(selectedType);
-                                  },
-                                },
-                              ],
-                            }}
-                            overlayClassName="glossary-manage-dropdown-list-container"
-                            overlayStyle={{ width: '350px' }}
-                            placement="bottomRight"
-                            trigger={['click']}>
-                            <Tooltip
-                              placement="topRight"
-                              title={t('label.manage-entity', {
-                                entity: t('label.asset-type'),
-                              })}>
+                            type="primary"
+                            onClick={handleOpenAddAttributeModal}>
+                            {t('label.add-attribute')}
+                          </Button>
+
+                          <ButtonGroup className="spaced" size="small">
+                            {/* 点赞/点踩 */}
+                            <Voting
+                              disabled={false}
+                              voteStatus={'unVoted' as any}
+                              votes={selectedType.votes}
+                              onUpdateVote={async (data) => {
+                                await handleUpdateVote(data, selectedType.id);
+                              }}
+                            />
+
+                            {/* 版本历史 */}
+                            <Tooltip title={t('label.version-plural-history')}>
                               <Button
-                                className="glossary-manage-dropdown-button"
-                                data-testid="manage-button"
-                                icon={
-                                  <IconDropdown
-                                    className="vertical-align-inherit manage-dropdown-icon"
-                                    height={16}
-                                    width={16}
-                                  />
-                                }
-                              />
+                                icon={<Icon component={VersionIcon} />}
+                                onClick={handleVersionHistory}>
+                                <Typography.Text>
+                                  {selectedType.version || '0.1'}
+                                </Typography.Text>
+                              </Button>
                             </Tooltip>
-                          </Dropdown>
-                        </ButtonGroup>
+
+                            {/* 管理按钮 */}
+                            <Dropdown
+                              align={{ targetOffset: [-12, 0] }}
+                              className="m-l-xs"
+                              menu={{
+                                items: [
+                                  {
+                                    label: (
+                                      <ManageButtonItemLabel
+                                        description={t(
+                                          'message.export-entity-help',
+                                          {
+                                            entity: t(
+                                              'label.asset-attribute-plural'
+                                            ),
+                                          }
+                                        )}
+                                        icon={ExportIcon}
+                                        id="export-button"
+                                        name={t('label.export')}
+                                      />
+                                    ),
+                                    key: 'export-button',
+                                    onClick: (e) => {
+                                      e.domEvent.stopPropagation();
+                                      handleExportAttributes();
+                                    },
+                                  },
+                                  {
+                                    label: (
+                                      <ManageButtonItemLabel
+                                        description={t(
+                                          'message.import-entity-help',
+                                          {
+                                            entity: t(
+                                              'label.asset-attribute-plural'
+                                            ),
+                                          }
+                                        )}
+                                        icon={ImportIcon}
+                                        id="import-button"
+                                        name={t('label.import')}
+                                      />
+                                    ),
+                                    key: 'import-button',
+                                    onClick: (e) => {
+                                      e.domEvent.stopPropagation();
+                                      handleImportAttributes();
+                                    },
+                                  },
+                                  {
+                                    label: (
+                                      <ManageButtonItemLabel
+                                        description={t(
+                                          'message.rename-entity',
+                                          {
+                                            entity: t('label.asset-type'),
+                                          }
+                                        )}
+                                        icon={EditIcon}
+                                        id="rename-button"
+                                        name={t('label.rename')}
+                                      />
+                                    ),
+                                    key: 'rename-button',
+                                    onClick: (e) => {
+                                      e.domEvent.stopPropagation();
+                                      handleEditType(selectedType);
+                                    },
+                                  },
+                                  {
+                                    label: (
+                                      <ManageButtonItemLabel
+                                        description={t(
+                                          'message.delete-entity-type-action-description',
+                                          {
+                                            entityType: t('label.asset-type'),
+                                          }
+                                        )}
+                                        icon={DeleteIcon}
+                                        id="delete-button"
+                                        name={t('label.delete')}
+                                      />
+                                    ),
+                                    key: 'delete-button',
+                                    onClick: (e) => {
+                                      e.domEvent.stopPropagation();
+                                      handleDeleteType(selectedType);
+                                    },
+                                  },
+                                ],
+                              }}
+                              overlayClassName="glossary-manage-dropdown-list-container"
+                              overlayStyle={{ width: '350px' }}
+                              placement="bottomRight"
+                              trigger={['click']}>
+                              <Tooltip
+                                placement="topRight"
+                                title={t('label.manage-entity', {
+                                  entity: t('label.asset-type'),
+                                })}>
+                                <Button
+                                  className="glossary-manage-dropdown-button"
+                                  data-testid="manage-button"
+                                  icon={
+                                    <IconDropdown
+                                      className="vertical-align-inherit manage-dropdown-icon"
+                                      height={16}
+                                      width={16}
+                                    />
+                                  }
+                                />
+                              </Tooltip>
+                            </Dropdown>
+                          </ButtonGroup>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Tab 页 */}
-                  <Card>
-                    {/* Tab 页 (去除了已移到头部的 Add 按钮和标题行) */}
-
+                    {/* Tab 栏与 Tab 内容分离 */}
                     {isLoadingAttributes ? (
-                      <Loader />
+                      <Card>
+                        <Loader />
+                      </Card>
                     ) : attributesError ? (
-                      <ErrorPlaceHolder
-                        type={ERROR_PLACEHOLDER_TYPE.CUSTOM}
-                        onClick={fetchAllAttributes}
-                      />
+                      <Card>
+                        <ErrorPlaceHolder
+                          type={ERROR_PLACEHOLDER_TYPE.CUSTOM}
+                          onClick={fetchAllAttributes}
+                        />
+                      </Card>
                     ) : (
                       <Tabs
+                        className="asset-type-page-tabs tabs-new"
                         defaultActiveKey={
                           Object.keys(groupedAttributes)[0] || 'all'
                         }
-                        items={tabItems}
+                        items={[
+                          ...tabItems,
+                          {
+                            key: 'activity',
+                            label: (
+                              <TabsLabel
+                                count={feedCount.totalCount}
+                                id="activity"
+                                name={t('label.activity-feed-plural')}
+                              />
+                            ),
+                            children: (
+                              <ActivityFeedTab
+                                entityType={'assetType' as any}
+                                feedCount={feedCount}
+                                hasGlossaryReviewer={false}
+                                layoutType={ActivityFeedLayoutType.THREE_PANEL}
+                                owners={selectedType?.owners}
+                                onFeedUpdate={getEntityFeedCount}
+                                onUpdateEntityDetails={fetchAssetTypes}
+                              />
+                            ),
+                          },
+                        ]}
                       />
                     )}
+                  </>
+                ) : (
+                  <Card>
+                    <div className="text-center p-lg">
+                      <p className="text-grey-muted">
+                        {t('label.select-type-view-details')}
+                      </p>
+                    </div>
                   </Card>
-                </>
-              ) : (
-                <Card>
-                  <div className="text-center p-lg">
-                    <p className="text-grey-muted">
-                      {t('label.select-type-view-details')}
-                    </p>
-                  </div>
-                </Card>
-              )}
-            </div>
-          ),
-        }}
-      />
+                )}
+              </div>
+            ),
+          }}
+        />
 
-      {/* 资产类型编辑/创建 Modal */}
-      <Modal
-        confirmLoading={isSubmitting}
-        open={isTypeModalVisible}
-        title={
-          typeModalMode === 'create'
-            ? t('label.add-entity', { entity: t('label.asset-type') })
-            : t('label.edit-entity', { entity: t('label.asset-type') })
-        }
-        width={600}
-        onCancel={() => {
-          setIsTypeModalVisible(false);
-          setFormData({ name: '', displayName: '', description: '' });
-        }}
-        onOk={handleTypeSubmit}>
-        <Form layout="vertical">
-          <Form.Item required label={t('label.name')}>
-            <Input
-              disabled={typeModalMode === 'edit'}
-              placeholder={t('label.name')}
-              value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
-              }
-            />
-          </Form.Item>
-          <Form.Item required label={t('label.display-name')}>
-            <Input
-              placeholder={t('label.display-name')}
-              value={formData.displayName}
-              onChange={(e) =>
-                setFormData({ ...formData, displayName: e.target.value })
-              }
-            />
-          </Form.Item>
-          <Form.Item required label={t('label.description')}>
-            <TextArea
-              placeholder={t('label.description')}
-              rows={3}
-              value={formData.description}
-              onChange={(e) =>
-                setFormData({ ...formData, description: e.target.value })
-              }
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* 添加属性到资产类型 Modal */}
-      <Modal
-        confirmLoading={isAddingAttribute}
-        open={isAddAttributeModalVisible}
-        title={t('label.add-attribute')}
-        width={600}
-        onCancel={() => {
-          setIsAddAttributeModalVisible(false);
-          setSelectedAttributeToAdd([]);
-        }}
-        onOk={handleAddAttribute}>
-        <Space className="w-full" direction="vertical" size="large">
+        {/* 资产类型编辑/创建 Modal */}
+        <Modal
+          confirmLoading={isSubmitting}
+          open={isTypeModalVisible}
+          title={
+            typeModalMode === 'create'
+              ? t('label.add-entity', { entity: t('label.asset-type') })
+              : t('label.edit-entity', { entity: t('label.asset-type') })
+          }
+          width={600}
+          onCancel={() => {
+            setIsTypeModalVisible(false);
+            setFormData({ name: '', displayName: '', description: '' });
+          }}
+          onOk={handleTypeSubmit}>
           <Form layout="vertical">
-            <Form.Item label={t('label.asset-attribute')}>
-              <Select
-                showSearch
-                className="w-full"
-                filterOption={(
-                  input: string,
-                  option?: { value: string; label: string }
-                ) =>
-                  (option?.label ?? '')
-                    .toLowerCase()
-                    .includes(input.toLowerCase())
+            <Form.Item required label={t('label.name')}>
+              <Input
+                disabled={typeModalMode === 'edit'}
+                placeholder={t('label.name')}
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
                 }
-                mode="multiple"
-                options={availableAttributes.map((attr) => ({
-                  value: attr.id,
-                  label: attr.displayName || attr.name,
-                }))}
-                placeholder={t('label.select-attribute')}
-                value={selectedAttributeToAdd}
-                onChange={(value: string[]) => setSelectedAttributeToAdd(value)}
               />
-              {availableAttributes.length === 0 && (
-                <Text className="mt-xs block" type="secondary">
-                  {t('label.no-available-attributes')}
-                </Text>
-              )}
+            </Form.Item>
+            <Form.Item required label={t('label.display-name')}>
+              <Input
+                placeholder={t('label.display-name')}
+                value={formData.displayName}
+                onChange={(e) =>
+                  setFormData({ ...formData, displayName: e.target.value })
+                }
+              />
+            </Form.Item>
+            <Form.Item required label={t('label.description')}>
+              <TextArea
+                placeholder={t('label.description')}
+                rows={3}
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+              />
             </Form.Item>
           </Form>
+        </Modal>
 
-          <div>
-            <Text type="secondary">
-              {t('message.add-attribute-to-type-description')}
-            </Text>
-          </div>
-        </Space>
-      </Modal>
-    </PageLayoutV1>
+        {/* 添加属性到资产类型 Modal */}
+        <Modal
+          confirmLoading={isAddingAttribute}
+          open={isAddAttributeModalVisible}
+          title={t('label.add-attribute')}
+          width={600}
+          onCancel={() => {
+            setIsAddAttributeModalVisible(false);
+            setSelectedAttributeToAdd([]);
+          }}
+          onOk={handleAddAttribute}>
+          <Space className="w-full" direction="vertical" size="large">
+            <Form layout="vertical">
+              <Form.Item label={t('label.asset-attribute')}>
+                <Select
+                  showSearch
+                  className="w-full"
+                  filterOption={(
+                    input: string,
+                    option?: { value: string; label: string }
+                  ) =>
+                    (option?.label ?? '')
+                      .toLowerCase()
+                      .includes(input.toLowerCase())
+                  }
+                  mode="multiple"
+                  options={availableAttributes.map((attr) => ({
+                    value: attr.id,
+                    label: attr.displayName || attr.name,
+                  }))}
+                  placeholder={t('label.select-attribute')}
+                  value={selectedAttributeToAdd}
+                  onChange={(value: string[]) =>
+                    setSelectedAttributeToAdd(value)
+                  }
+                />
+                {availableAttributes.length === 0 && (
+                  <Text className="mt-xs block" type="secondary">
+                    {t('label.no-available-attributes')}
+                  </Text>
+                )}
+              </Form.Item>
+            </Form>
+
+            <div>
+              <Text type="secondary">
+                {t('message.add-attribute-to-type-description')}
+              </Text>
+            </div>
+          </Space>
+        </Modal>
+
+        {/* 导入资产类型 CSV Modal */}
+        <Modal
+          confirmLoading={isImporting}
+          footer={[
+            <Button
+              key="cancel"
+              onClick={() => {
+                setIsImportModalVisible(false);
+                setImportFileList([]);
+                setImportResult(null);
+              }}>
+              {t('label.cancel')}
+            </Button>,
+            <Button
+              disabled={importFileList.length === 0}
+              key="validate"
+              loading={isImporting}
+              onClick={() => handleImportSubmit(true)}>
+              {t('label.validate')}
+            </Button>,
+            <Button
+              disabled={importFileList.length === 0}
+              key="import"
+              loading={isImporting}
+              type="primary"
+              onClick={() => handleImportSubmit(false)}>
+              {t('label.import')}
+            </Button>,
+          ]}
+          open={isImportModalVisible}
+          title={t('label.import-entity', {
+            entity: t('label.asset-attribute'),
+          })}
+          width={600}
+          onCancel={() => {
+            setIsImportModalVisible(false);
+            setImportFileList([]);
+            setImportResult(null);
+          }}>
+          <Space className="w-full" direction="vertical" size="large">
+            <Upload.Dragger
+              accept=".csv"
+              beforeUpload={() => false}
+              fileList={importFileList}
+              maxCount={1}
+              onChange={({ fileList }) => {
+                setImportFileList(fileList);
+                setImportResult(null);
+              }}
+              onRemove={() => {
+                setImportFileList([]);
+                setImportResult(null);
+              }}>
+              <p className="ant-upload-text">{t('message.upload-csv-file')}</p>
+              <p className="ant-upload-hint">
+                {t('message.import-entity-help', {
+                  entity: t('label.asset-attribute-plural'),
+                })}
+              </p>
+            </Upload.Dragger>
+            {importResult && <Text type="secondary">{importResult}</Text>}
+          </Space>
+        </Modal>
+      </PageLayoutV1>
+    </ActivityFeedProvider>
   );
 };
 

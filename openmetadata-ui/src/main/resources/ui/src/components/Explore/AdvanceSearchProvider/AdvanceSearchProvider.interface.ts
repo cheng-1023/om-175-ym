@@ -29,6 +29,7 @@ export interface AdvanceSearchProviderProps {
   updateURL?: boolean;
   fieldOverrides?: { field: string; type: string }[];
   searchOutputType?: SearchOutputType;
+  searchIndex?: SearchIndex | Array<SearchIndex>;
 }
 
 export interface AdvanceSearchContext {

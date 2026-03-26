@@ -52,6 +52,10 @@ public class ListFilter extends Filter<ListFilter> {
     conditions.add(getEntityLinkCondition());
     conditions.add(getAgentTypeCondition());
     conditions.add(getProviderCondition());
+    conditions.add(getAttributeCategoryCondition());
+    conditions.add(getNameSearchCondition());
+    conditions.add(getAssetTypeCondition());
+    conditions.add(getCatalogCondition());
     String condition = addCondition(conditions);
     return condition.isEmpty() ? "WHERE TRUE" : "WHERE " + condition;
   }
@@ -115,6 +119,60 @@ public class ListFilter extends Filter<ListFilter> {
       } else {
         return String.format("json->>'provider' = '%s'", provider);
       }
+    }
+  }
+
+  private String getAttributeCategoryCondition() {
+    String attributeCategory = queryParams.get("attributeCategory");
+    if (attributeCategory == null) {
+      return "";
+    } else {
+      if (Boolean.TRUE.equals(DatasourceConfig.getInstance().isMySQL())) {
+        return String.format("JSON_UNQUOTE(JSON_EXTRACT(json, '$.attributeCategory')) = '%s'", attributeCategory);
+      } else {
+        return String.format("json->>'attributeCategory' = '%s'", attributeCategory);
+      }
+    }
+  }
+
+  private String getAssetTypeCondition() {
+    String assetTypeId = queryParams.get("assetType");
+    if (assetTypeId == null) {
+      return "";
+    }
+    // DataAsset(fromId) --HAS(relation=10)--> AssetType(toId)
+    // 筛选所有关联了指定 assetType 的 dataAsset
+    return String.format(
+        "(id IN (SELECT fromId FROM entity_relationship WHERE toId = '%s' AND fromEntity = 'dataAsset' AND toEntity = 'assetType' AND relation = 10))",
+        escape(assetTypeId));
+  }
+
+  private String getCatalogCondition() {
+    String catalogId = queryParams.get("catalog");
+    if (catalogId == null) {
+      return "";
+    }
+    // AssetCatalog(fromId) --CONTAINS(relation=0)--> DataAsset(toId)
+    // 筛选所有属于指定 catalog 的 dataAsset
+    return String.format(
+        "(id IN (SELECT toId FROM entity_relationship WHERE fromId = '%s' AND fromEntity = 'assetCatalog' AND toEntity = 'dataAsset' AND relation = 0))",
+        escape(catalogId));
+  }
+
+  private String getNameSearchCondition() {
+    String nameSearch = queryParams.get("nameSearch");
+    if (nameSearch == null) {
+      return "";
+    }
+    // 对 name 和 displayName 进行模糊搜索
+    if (Boolean.TRUE.equals(DatasourceConfig.getInstance().isMySQL())) {
+      return String.format(
+          "(name LIKE '%%%s%%' OR JSON_UNQUOTE(JSON_EXTRACT(json, '$.displayName')) LIKE '%%%s%%')",
+          escape(nameSearch), escape(nameSearch));
+    } else {
+      return String.format(
+          "(name LIKE '%%%s%%' OR json->>'displayName' LIKE '%%%s%%')",
+          escape(nameSearch), escape(nameSearch));
     }
   }
 

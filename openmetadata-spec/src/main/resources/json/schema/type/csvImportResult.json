@@ -44,6 +44,10 @@
     "importResultsCsv" : {
       "description": "CSV file that captures the result of import operation.",
       "type" : "string"
+    },
+    "message" : {
+      "description": "Human-readable summary message showing success, failure counts and failure reasons.",
+      "type" : "string"
     }
   },
   "additionalProperties": false

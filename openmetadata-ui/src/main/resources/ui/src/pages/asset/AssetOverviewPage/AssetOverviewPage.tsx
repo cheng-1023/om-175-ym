@@ -13,43 +13,48 @@
 
 import {
   Badge,
-  Button,
   Card,
   Col,
   Empty,
   Input,
-  message,
   Row,
   Select,
   Space,
-  Table,
   Tag,
   Tree,
+  Typography,
+  Pagination,
 } from 'antd';
+import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
+
+import { ReactComponent as IconDown } from '../../../assets/svg/ic-arrow-down.svg';
+import { ReactComponent as IconRight } from '../../../assets/svg/ic-arrow-right.svg';
 import { ReactComponent as SearchIcon } from '../../../assets/svg/ic-search.svg';
-import { ReactComponent as CatalogIcon } from '../../../assets/svg/catalog.svg';
 import ErrorPlaceHolder from '../../../components/common/ErrorWithPlaceholder/ErrorPlaceHolder';
 import Loader from '../../../components/common/Loader/Loader';
 import ResizableLeftPanels from '../../../components/common/ResizablePanels/ResizableLeftPanels';
+import DataAssetDetailPanel from './DataAssetDetailPanel';
 import PageLayoutV1 from '../../../components/PageLayoutV1/PageLayoutV1';
 import { ERROR_PLACEHOLDER_TYPE } from '../../../enums/common.enum';
+import { SearchIndex } from '../../../enums/search.enum';
+import { AssetCatalog } from '../../../generated/entity/data/asset/assetCatalog';
+import { AssetCategory } from '../../../generated/entity/data/asset/assetCategory';
+import { AssetType } from '../../../generated/entity/data/asset/assetType';
+import { DataAsset } from '../../../generated/entity/data/asset/dataAsset';
 import {
   getAssetCategoriesList,
   getAssetCatalogsList,
   getAssetTypesList,
-  getDataAssetsList,
 } from '../../../rest/assetAPI';
-import { DataAsset } from '../../../generated/entity/data/asset/dataAsset';
-import { AssetCategory } from '../../../generated/entity/data/asset/assetCategory';
-import { AssetCatalog } from '../../../generated/entity/data/asset/assetCatalog';
-import { AssetType } from '../../../generated/entity/data/asset/assetType';
+import { searchQuery } from '../../../rest/searchAPI';
+import '../../../components/Explore/ExploreTree/explore-tree.less';
 import './asset-overview-page.less';
 
 const { Search } = Input;
 const { Option } = Select;
-const { DirectoryTree } = Tree;
 
 interface TreeNode {
   title: React.ReactNode;
@@ -73,6 +78,7 @@ const AssetOverviewPage: React.FC = () => {
   // 数据状态
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
   const [dataAssets, setDataAssets] = useState<DataAsset[]>([]);
+  const [totalAssets, setTotalAssets] = useState<number>(0);
   const [assetTypes, setAssetTypes] = useState<AssetType[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<DataAsset | null>(null);
 
@@ -81,11 +87,14 @@ const AssetOverviewPage: React.FC = () => {
     string | undefined
   >();
   const [searchText, setSearchText] = useState('');
-  const [selectedCatalog, setSelectedCatalog] = useState<string | undefined>();
+  const [catalogFilter, setCatalogFilter] = useState<string[]>([]);
 
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  // 展开配置
+  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
 
   // 获取树形数据
   const fetchTreeData = useCallback(async () => {
@@ -95,7 +104,7 @@ const AssetOverviewPage: React.FC = () => {
       const [categoriesResponse, catalogsResponse] = await Promise.all([
         getAssetCategoriesList({ limit: 100 }),
         getAssetCatalogsList({
-          fields: 'category,parent,fullyQualifiedName',
+          fields: 'category,parent,fullyQualifiedName,order',
           limit: 1000,
         }),
       ]);
@@ -110,20 +119,26 @@ const AssetOverviewPage: React.FC = () => {
       ): TreeNode[] => {
         return allCatalogs
           .filter((c) => c.parent?.id === parentId)
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
           .map((catalog) => {
             const childNodes = buildCatalogNodes(catalog.id ?? '', allCatalogs);
 
             return {
               title: (
-                <Space>
-                  <span>{catalog.displayName || catalog.name}</span>
+                <div className="d-flex justify-between w-full">
+                  <Typography.Text>
+                    {catalog.displayName || catalog.name}
+                  </Typography.Text>
                   {catalog.assetCount !== undefined && (
-                    <Badge
-                      count={catalog.assetCount}
-                      style={{ backgroundColor: '#1890ff' }}
-                    />
+                    <span className="explore-node-count">
+                      <Badge
+                        className="m-l-xs"
+                        count={catalog.assetCount}
+                        style={{ backgroundColor: '#1890ff' }}
+                      />
+                    </span>
                   )}
-                </Space>
+                </div>
               ),
               key: `catalog-${catalog.id}`,
               type: 'catalog' as const,
@@ -135,27 +150,35 @@ const AssetOverviewPage: React.FC = () => {
       };
 
       const nodes: TreeNode[] = categories.map((category: AssetCategory) => {
-        // 找出该分类下没有 parent 的一级目录节点
-        const topLevelCatalogs = catalogs.filter(
-          (c: AssetCatalog) => c.category?.id === category.id && !c.parent
-        );
+        const topLevelCatalogs = catalogs
+          .filter(
+            (c: AssetCatalog) => c.category?.id === category.id && !c.parent
+          )
+          .sort(
+            (a: AssetCatalog, b: AssetCatalog) =>
+              (a.order ?? 0) - (b.order ?? 0)
+          );
 
-        // 为每个一级目录递归构建子节点
         const catalogChildren: TreeNode[] = topLevelCatalogs.map(
           (catalog: AssetCatalog) => {
             const childNodes = buildCatalogNodes(catalog.id ?? '', catalogs);
 
             return {
               title: (
-                <Space>
-                  <span>{catalog.displayName || catalog.name}</span>
+                <div className="d-flex justify-between w-full">
+                  <Typography.Text>
+                    {catalog.displayName || catalog.name}
+                  </Typography.Text>
                   {catalog.assetCount !== undefined && (
-                    <Badge
-                      count={catalog.assetCount}
-                      style={{ backgroundColor: '#1890ff' }}
-                    />
+                    <span className="explore-node-count">
+                      <Badge
+                        className="m-l-xs"
+                        count={catalog.assetCount}
+                        style={{ backgroundColor: '#1890ff' }}
+                      />
+                    </span>
                   )}
-                </Space>
+                </div>
               ),
               key: `catalog-${catalog.id}`,
               type: 'catalog' as const,
@@ -168,28 +191,33 @@ const AssetOverviewPage: React.FC = () => {
 
         return {
           title: (
-            <Space>
-              <span className="font-semibold">
+            <div className="d-flex justify-between w-full">
+              <span className="font-semibold text-grey-body">
                 {category.displayName || category.name}
               </span>
-              <Badge
-                count={category.catalogCount || 0}
-                style={{ backgroundColor: '#52c41a' }}
-              />
-            </Space>
+              <span className="explore-node-count">
+                <Badge
+                  className="m-l-xs"
+                  count={category.catalogCount || 0}
+                  style={{ backgroundColor: '#52c41a' }}
+                />
+              </span>
+            </div>
           ),
           key: `category-${category.id}`,
-          icon: <CatalogIcon style={{ width: '16px', height: '16px' }} />,
+
           type: 'category',
           data: category,
           isLeaf: catalogChildren.length === 0,
-          children: catalogChildren,
+          children: catalogChildren.length > 0 ? catalogChildren : undefined,
         };
       });
 
       setTreeData(nodes);
+
+      // 默认全部折叠
+      setExpandedKeys([]);
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error('Failed to fetch tree data:', err);
       setTreeError(err as Error);
     } finally {
@@ -203,50 +231,59 @@ const AssetOverviewPage: React.FC = () => {
       const response = await getAssetTypesList({ limit: 100 });
       setAssetTypes(response.data || []);
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error('Failed to fetch asset types:', err);
     }
   }, []);
 
-  // 获取数据资产列表
+  // 获取数据资产列表 (通过 ES)
   const fetchDataAssets = useCallback(async () => {
     setIsLoadingAssets(true);
     setAssetsError(null);
     try {
-      const params: Record<string, unknown> = {
-        limit: pageSize,
-        page: currentPage,
-      };
+      // 搜索文本作为 query string
+      const q = searchText ? `*${searchText}*` : '*';
 
+      // 将 assetType 和 catalog 筛选通过 queryFilter (ES bool filter) 传入
+      // 避免 query_string 对 keyword+normalizer 字段的大小写不匹配问题
+      const mustFilters: Record<string, unknown>[] = [];
       if (selectedAssetType) {
-        params.assetType = selectedAssetType;
+        mustFilters.push({ term: { assetType: selectedAssetType } });
       }
-
-      if (selectedCatalog) {
-        params.catalog = selectedCatalog;
+      if (catalogFilter.length > 0) {
+        mustFilters.push({ terms: { catalog: catalogFilter } });
       }
+      const builtQueryFilter =
+        mustFilters.length > 0
+          ? { query: { bool: { filter: mustFilters } } }
+          : undefined;
 
-      const response = await getDataAssetsList(params);
-      setDataAssets(response.data || []);
+      const response = await searchQuery({
+        searchIndex: SearchIndex.DATA_ASSET_SEARCH as any,
+        query: q,
+        queryFilter: builtQueryFilter,
+        pageNumber: currentPage,
+        pageSize: pageSize,
+      });
 
-      // 如果有选中的资产且列表不为空,默认选中第一个
-      if (!selectedAsset && response.data && response.data.length > 0) {
-        setSelectedAsset(response.data[0]);
+      const hits = response.hits.hits.map(
+        (hit) => hit._source as unknown as DataAsset
+      );
+      setDataAssets(hits);
+      setTotalAssets(response.hits.total.value);
+
+      // 筛选后自动选中第一条记录；无结果时清空选中
+      if (hits.length > 0) {
+        setSelectedAsset(hits[0]);
+      } else {
+        setSelectedAsset(null);
       }
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error('Failed to fetch data assets:', err);
       setAssetsError(err as Error);
     } finally {
       setIsLoadingAssets(false);
     }
-  }, [
-    currentPage,
-    pageSize,
-    selectedAssetType,
-    selectedCatalog,
-    selectedAsset,
-  ]);
+  }, [currentPage, pageSize, selectedAssetType, catalogFilter, searchText]);
 
   useEffect(() => {
     fetchTreeData();
@@ -257,21 +294,48 @@ const AssetOverviewPage: React.FC = () => {
     fetchDataAssets();
   }, [fetchDataAssets]);
 
+  // Escape 关闭面板
+  useEffect(() => {
+    const escapeKeyHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedAsset(null);
+      }
+    };
+    document.addEventListener('keydown', escapeKeyHandler);
+
+    return () => {
+      document.removeEventListener('keydown', escapeKeyHandler);
+    };
+  }, []);
+
   // 树节点点击事件
   const handleTreeSelect = useCallback(
     (selectedKeys: React.Key[], info: any) => {
       if (selectedKeys.length > 0) {
         const node = info.node;
 
-        if (node.type === 'catalog') {
-          setSelectedCatalog((node.data as AssetCatalog).name);
-          setCurrentPage(1);
-        } else {
-          setSelectedCatalog(undefined);
-          setCurrentPage(1);
-        }
+        const collectCatalogNames = (n: any): string[] => {
+          let names: string[] = [];
+          if (n.type === 'catalog' && n.data) {
+            names.push(
+              (n.data as AssetCatalog).fullyQualifiedName ||
+                (n.data as AssetCatalog).name
+            );
+          }
+          if (n.children && n.children.length > 0) {
+            n.children.forEach((child: any) => {
+              names = names.concat(collectCatalogNames(child));
+            });
+          }
+
+          return names;
+        };
+
+        const collectedNames = collectCatalogNames(node);
+        setCatalogFilter(collectedNames);
+        setCurrentPage(1);
       } else {
-        setSelectedCatalog(undefined);
+        setCatalogFilter([]);
         setCurrentPage(1);
       }
     },
@@ -281,6 +345,7 @@ const AssetOverviewPage: React.FC = () => {
   // 搜索处理
   const handleSearch = useCallback((value: string) => {
     setSearchText(value);
+    setCurrentPage(1);
   }, []);
 
   // 资产类型改变
@@ -290,9 +355,9 @@ const AssetOverviewPage: React.FC = () => {
   }, []);
 
   // 分页改变
-  const handleTableChange = useCallback((pagination: any) => {
-    setCurrentPage(pagination.current);
-    setPageSize(pagination.pageSize);
+  const handleTableChange = useCallback((page: number, size: number) => {
+    setCurrentPage(page);
+    setPageSize(size);
   }, []);
 
   // 资产行点击事件
@@ -300,71 +365,33 @@ const AssetOverviewPage: React.FC = () => {
     setSelectedAsset(record);
   }, []);
 
-  // 过滤后的资产列表
-  const filteredAssets = useMemo(() => {
-    if (!searchText) {
-      return dataAssets;
-    }
+  // 映射字典，用于将 ES 仅存 FQN 的短板映射为 displayName
+  const assetTypeMap = useMemo(() => {
+    return assetTypes.reduce((acc, curr) => {
+      acc[curr.fullyQualifiedName || curr.name] = curr.displayName || curr.name;
 
-    const searchLower = searchText.toLowerCase();
+      return acc;
+    }, {} as Record<string, string>);
+  }, [assetTypes]);
 
-    return dataAssets.filter(
-      (asset) =>
-        asset.name.toLowerCase().includes(searchLower) ||
-        (asset.displayName || '').toLowerCase().includes(searchLower) ||
-        (asset.description || '').toLowerCase().includes(searchLower)
-    );
-  }, [dataAssets, searchText]);
+  // 同理转换资产目录
+  const catalogMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    const traverse = (nodes: any[]) => {
+      nodes.forEach((n) => {
+        if (n.type === 'catalog' && n.data) {
+          map[n.data.fullyQualifiedName || n.data.name] =
+            n.data.displayName || n.data.name;
+        }
+        if (n.children) {
+          traverse(n.children);
+        }
+      });
+    };
+    traverse(treeData);
 
-  // 表格列定义
-  const columns = useMemo(
-    () => [
-      {
-        title: t('label.name'),
-        dataIndex: 'name',
-        key: 'name',
-        width: 250,
-        render: (text: string, record: DataAsset) => (
-          <Space direction="vertical" size={0}>
-            <div className="font-bold text-blue-600 cursor-pointer hover:text-blue-800">
-              {record.displayName || text}
-            </div>
-            <div className="text-xs text-grey-muted">{text}</div>
-          </Space>
-        ),
-      },
-      {
-        title: t('label.description'),
-        dataIndex: 'description',
-        key: 'description',
-        ellipsis: true,
-        render: (text: string) => text || '-',
-      },
-      {
-        title: t('label.asset-type'),
-        dataIndex: 'assetType',
-        key: 'assetType',
-        width: 150,
-        render: (assetType: DataAsset['assetType']) => (
-          <Tag color="geekblue">
-            {assetType?.displayName || assetType?.name || '-'}
-          </Tag>
-        ),
-      },
-      {
-        title: t('label.catalog'),
-        dataIndex: 'catalog',
-        key: 'catalog',
-        width: 150,
-        render: (catalog: DataAsset['catalog']) => (
-          <Tag color="green">
-            {catalog?.displayName || catalog?.name || '-'}
-          </Tag>
-        ),
-      },
-    ],
-    [t]
-  );
+    return map;
+  }, [treeData]);
 
   return (
     <PageLayoutV1 pageTitle={t('label.asset-overview')}>
@@ -376,7 +403,7 @@ const AssetOverviewPage: React.FC = () => {
           minWidth: 280,
           title: t('label.data-assets'),
           children: (
-            <div className="p-x-sm">
+            <div className="p-x-sm h-full explore-tree">
               {isLoadingTree ? (
                 <Loader />
               ) : treeError ? (
@@ -387,11 +414,16 @@ const AssetOverviewPage: React.FC = () => {
               ) : treeData.length === 0 ? (
                 <Empty description={t('label.no-catalogs-found')} />
               ) : (
-                <DirectoryTree
-                  defaultExpandAll
+                <Tree
+                  blockNode
                   showIcon
+                  expandedKeys={expandedKeys}
                   multiple={false}
-                  treeData={treeData}
+                  switcherIcon={({ expanded }: { expanded: boolean }) =>
+                    expanded ? <IconDown /> : <IconRight />
+                  }
+                  treeData={treeData as any}
+                  onExpand={(keys) => setExpandedKeys(keys)}
                   onSelect={handleTreeSelect}
                 />
               )}
@@ -413,7 +445,7 @@ const AssetOverviewPage: React.FC = () => {
                   <Card className="p-md card-padding-0 m-b-box">
                     <Row>
                       <Col className="searched-data-container w-full">
-                        <Row gutter={[0, 8]}>
+                        <Row gutter={[0, 8]} justify="space-between">
                           <Col>
                             <Space size="middle">
                               <Search
@@ -431,18 +463,15 @@ const AssetOverviewPage: React.FC = () => {
                                 value={selectedAssetType}
                                 onChange={handleAssetTypeChange}>
                                 {assetTypes.map((type) => (
-                                  <Option key={type.id} value={type.name}>
+                                  <Option
+                                    key={type.id}
+                                    value={
+                                      type.fullyQualifiedName || type.name
+                                    }>
                                     {type.displayName || type.name}
                                   </Option>
                                 ))}
                               </Select>
-                              <Button
-                                type="primary"
-                                onClick={() =>
-                                  message.info(t('message.feature-coming-soon'))
-                                }>
-                                {t('label.advanced-search')}
-                              </Button>
                             </Space>
                           </Col>
                         </Row>
@@ -454,43 +483,111 @@ const AssetOverviewPage: React.FC = () => {
 
               {/* 数据展示区域 */}
               <Row
-                className="asset-data-container"
+                className="explore-data-container"
                 gutter={[20, 0]}
                 wrap={false}>
                 <Col flex="auto">
                   <Card className="h-full explore-main-card">
                     <div className="h-full">
                       {!isLoadingAssets && !assetsError ? (
-                        <Table
-                          columns={columns}
-                          dataSource={filteredAssets}
-                          pagination={{
-                            current: currentPage,
-                            pageSize: pageSize,
-                            total: filteredAssets.length,
-                            showSizeChanger: true,
-                            showTotal: (total, range) =>
-                              t('label.showing-range-of-total', {
-                                start: range[0],
-                                end: range[1],
-                                total: total,
-                              }),
-                            pageSizeOptions: ['10', '20', '50', '100'],
-                          }}
-                          rowKey="id"
-                          size="small"
-                          onChange={handleTableChange}
-                          onRow={(record) => ({
-                            onClick: () => handleRowClick(record),
-                            style: {
-                              cursor: 'pointer',
-                              backgroundColor:
-                                selectedAsset?.id === record.id
-                                  ? '#e6f7ff'
-                                  : undefined,
-                            },
-                          })}
-                        />
+                        dataAssets.length === 0 ? (
+                          <div className="d-flex justify-center items-center h-full">
+                            <Empty description={t('label.no-data-found')} />
+                          </div>
+                        ) : (
+                          <div className="d-flex flex-col gap-4">
+                            {dataAssets.map((record) => {
+                              const assetTypeName =
+                                typeof record.assetType === 'string'
+                                  ? record.assetType
+                                  : record.assetType?.fullyQualifiedName ||
+                                    record.assetType?.name ||
+                                    '';
+                              const catalogName =
+                                typeof record.catalog === 'string'
+                                  ? record.catalog
+                                  : record.catalog?.fullyQualifiedName ||
+                                    record.catalog?.name ||
+                                    '';
+
+                              const displayAssetType = assetTypeName
+                                ? assetTypeMap[assetTypeName] || assetTypeName
+                                : '-';
+                              const displayCatalog = catalogName
+                                ? catalogMap[catalogName] || catalogName
+                                : '-';
+
+                              return (
+                                <Card
+                                  hoverable
+                                  className={classNames(
+                                    'data-asset-card m-b-md',
+                                    {
+                                      'highlight-card':
+                                        selectedAsset?.id === record.id,
+                                    }
+                                  )}
+                                  key={record.id}
+                                  size="small"
+                                  onClick={() => handleRowClick(record)}>
+                                  <div className="d-flex flex-col gap-2 p-sm">
+                                    <div>
+                                      <Link
+                                        className="text-lg font-medium text-link-color cursor-pointer"
+                                        to={`/dataAsset/${
+                                          record.fullyQualifiedName ??
+                                          record.name
+                                        }`}
+                                        onClick={(e) => e.stopPropagation()}>
+                                        {record.displayName || record.name}
+                                      </Link>
+                                    </div>
+                                    <div className="text-sm text-grey-muted max-two-lines m-b-sm">
+                                      {record.description || (
+                                        <span className="text-italic">
+                                          {t('label.no-description')}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="d-flex items-center gap-2 m-t-xs">
+                                      <span className="text-grey-muted text-xs">
+                                        {t('label.asset-type')}:
+                                      </span>
+                                      <Tag color="geekblue">
+                                        {displayAssetType}
+                                      </Tag>
+
+                                      <span className="text-grey-muted text-xs m-l-sm">
+                                        {t('label.catalog')}:
+                                      </span>
+                                      <Tag color="cyan">{displayCatalog}</Tag>
+                                    </div>
+                                  </div>
+                                </Card>
+                              );
+                            })}
+
+                            {totalAssets > 0 && (
+                              <div className="d-flex justify-center m-t-md p-b-md">
+                                <Pagination
+                                  showSizeChanger
+                                  current={currentPage}
+                                  pageSize={pageSize}
+                                  pageSizeOptions={['10', '20', '50', '100']}
+                                  showTotal={(total, range) =>
+                                    t('label.showing-range-of-total', {
+                                      start: range[0],
+                                      end: range[1],
+                                      total: total,
+                                    })
+                                  }
+                                  total={totalAssets}
+                                  onChange={handleTableChange}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )
                       ) : (
                         <>
                           {isLoadingAssets ? <Loader /> : <></>}
@@ -508,76 +605,17 @@ const AssetOverviewPage: React.FC = () => {
                   </Card>
                 </Col>
 
-                {selectedAsset && !isLoadingAssets && (
-                  <Col flex="0.4">
-                    <Card className="h-full" title={t('label.asset-overview')}>
-                      <Space
-                        direction="vertical"
-                        size="middle"
-                        style={{ width: '100%' }}>
-                        <div>
-                          <label className="block mb-sm font-semibold text-grey-muted">
-                            {t('label.name')}
-                          </label>
-                          <div className="text-lg">{selectedAsset.name}</div>
+                {!isLoadingAssets && (
+                  <Col className="explore-right-panel" flex="400px">
+                    {selectedAsset ? (
+                      <DataAssetDetailPanel selectedAsset={selectedAsset} />
+                    ) : (
+                      <Card className="h-full">
+                        <div className="d-flex justify-center items-center h-full">
+                          <Empty description={t('label.no-data-found')} />
                         </div>
-                        {selectedAsset.displayName && (
-                          <div>
-                            <label className="block mb-sm font-semibold text-grey-muted">
-                              {t('label.display-name')}
-                            </label>
-                            <div>{selectedAsset.displayName}</div>
-                          </div>
-                        )}
-                        {selectedAsset.description && (
-                          <div>
-                            <label className="block mb-sm font-semibold text-grey-muted">
-                              {t('label.description')}
-                            </label>
-                            <div>{selectedAsset.description}</div>
-                          </div>
-                        )}
-                        {selectedAsset.assetType && (
-                          <div>
-                            <label className="block mb-sm font-semibold text-grey-muted">
-                              {t('label.asset-type')}
-                            </label>
-                            <Tag color="geekblue">
-                              {selectedAsset.assetType.displayName ||
-                                selectedAsset.assetType.name}
-                            </Tag>
-                          </div>
-                        )}
-                        {selectedAsset.catalog && (
-                          <div>
-                            <label className="block mb-sm font-semibold text-grey-muted">
-                              {t('label.catalog')}
-                            </label>
-                            <Tag color="green">
-                              {selectedAsset.catalog.displayName ||
-                                selectedAsset.catalog.name}
-                            </Tag>
-                          </div>
-                        )}
-                        {selectedAsset.attributeValues &&
-                          selectedAsset.attributeValues.length > 0 && (
-                            <div>
-                              <label className="block mb-sm font-semibold text-grey-muted">
-                                {t('label.attribute-values')}
-                              </label>
-                              <Space wrap size={8}>
-                                {selectedAsset.attributeValues.map(
-                                  (attr, index) => (
-                                    <Tag color="blue" key={index}>
-                                      <strong>{attr.name}:</strong> {attr.value}
-                                    </Tag>
-                                  )
-                                )}
-                              </Space>
-                            </div>
-                          )}
-                      </Space>
-                    </Card>
+                      </Card>
+                    )}
                   </Col>
                 )}
               </Row>

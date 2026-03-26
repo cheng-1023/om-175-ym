@@ -6,11 +6,6 @@
     { "name": "name", "required": true, "description": "Name of the asset catalog.", "examples": ["`CustomerData`, `FinancialData`"] },
     { "name": "displayName", "required": false, "description": "Display name for the catalog.", "examples": ["`客户数据`, `财务数据`"] },
     { "name": "description", "required": false, "description": "Description of the asset catalog in Markdown format.", "examples": ["`Customer data catalog`"] },
-    { "name": "order", "required": false, "description": "Display order among siblings.", "examples": ["`1`, `2`"] },
-    { "name": "tags", "required": false, "description": "Fully qualified classification tag names separated by ';'.", "examples": ["`PII.Sensitive`"] },
-    { "name": "reviewers", "required": false, "description": "User names separated by ';'.", "examples": ["`john;adam`"] },
-    { "name": "owner", "required": false, "description": "Owner names separated by ';'.", "examples": ["`user;john`"] },
-    { "name": "domain", "required": false, "description": "Fully qualified domain name.", "examples": ["`Sales`"] },
-    { "name": "extension", "required": false, "description": "Custom extension properties.", "examples": ["`customAttribute:value`"] }
+    { "name": "order", "required": false, "description": "Display order among siblings.", "examples": ["`1`, `2`"] }
   ]
 }

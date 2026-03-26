@@ -816,6 +816,7 @@ class AdvancedSearchClassBase {
         ...this.apiEndpointQueryBuilderFields,
         ...this.glossaryTermQueryBuilderFields,
       },
+      [SearchIndex.DATA_ASSET_SEARCH]: {},
     };
 
     // Find out the common fields between the selected indices

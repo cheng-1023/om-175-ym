@@ -109,10 +109,10 @@ public final class CommonUtil {
     try (Stream<Path> paths = Files.walk(Paths.get(file.getPath()))) {
       return paths
           .filter(Files::isRegularFile)
-          .filter(path -> pattern.matcher(path.toString()).matches())
+          .filter(path -> pattern.matcher(path.toString().replace('\\', '/')).matches())
           .map(
               path -> {
-                String relativePath = root.relativize(path).toString();
+                String relativePath = root.relativize(path).toString().replace('\\', '/');
                 LOG.debug("Adding directory file {}", relativePath);
                 return relativePath;
               })

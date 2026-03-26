@@ -111,6 +111,15 @@ const NextPrevious: FC<NextPreviousProps> = ({
         pageSize,
         paging.total
       )} `}</span>
+      {paging.total !== undefined && paging.total > 0 && (
+        <span className="pagination-item-count text-grey-muted text-xs" data-testid="item-count-indicator">
+          {t('label.showing-range-of-total', {
+            start: (currentPage - 1) * pageSize + 1,
+            end: Math.min(currentPage * pageSize, paging.total),
+            total: paging.total,
+          })}
+        </span>
+      )}
       <Button
         className="pagination-button hover-button"
         data-testid="next"

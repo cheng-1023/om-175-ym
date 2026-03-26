@@ -593,19 +593,12 @@ const AuthenticatedAppRouter: FunctionComponent = () => {
         component={AssetAttributePage}
         path={ROUTES.ASSET_ATTRIBUTES}
       />
-      <Route
-        exact
-        component={AssetTypePage}
-        path={ROUTES.ASSET_TYPE_DETAILS}
-      />
+      <Route exact component={AssetTypePage} path={ROUTES.ASSET_TYPE_DETAILS} />
       <Route exact component={AssetTypePage} path={ROUTES.ASSET_TYPES} />
       <Route
         exact
         component={DataAssetPage}
-        path={[
-          ROUTES.DATA_ASSETS,
-          ROUTES.DATA_ASSET_DETAILS,
-        ]}
+        path={[ROUTES.DATA_ASSETS, ROUTES.DATA_ASSET_DETAILS]}
       />
 
       <Route
