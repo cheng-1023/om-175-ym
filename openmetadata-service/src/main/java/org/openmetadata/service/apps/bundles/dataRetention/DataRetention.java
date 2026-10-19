@@ -18,8 +18,10 @@ import org.openmetadata.schema.entity.applications.configuration.internal.DataRe
 import org.openmetadata.schema.system.EntityStats;
 import org.openmetadata.schema.system.Stats;
 import org.openmetadata.schema.system.StepStats;
+import org.openmetadata.service.Entity;
 import org.openmetadata.service.apps.AbstractNativeApplication;
 import org.openmetadata.service.jdbi3.CollectionDAO;
+import org.openmetadata.service.jdbi3.TestCaseResultRepository;
 import org.openmetadata.service.search.SearchRepository;
 import org.openmetadata.service.socket.WebSocketManager;
 import org.openmetadata.service.util.JsonUtils;
@@ -28,8 +30,14 @@ import org.quartz.JobExecutionContext;
 @Slf4j
 public class DataRetention extends AbstractNativeApplication {
   private static final int BATCH_SIZE = 10_000;
+  private static final int MINIMUM_CONFIGURED_INTEGER_VALUE = 1;
+  private static final int DEFAULT_TEST_CASE_RESULT_RETENTION_PERIOD = 90;
+  private static final int DEFAULT_TEST_CASE_RESULT_MINIMUM_RETENTION_COUNT =
+      MINIMUM_CONFIGURED_INTEGER_VALUE;
 
   private DataRetentionConfiguration dataRetentionConfiguration;
+  private Integer testCaseResultRetentionPeriod;
+  private Integer testCaseResultMinimumRetentionCount;
   private final CollectionDAO.EventSubscriptionDAO eventSubscriptionDAO;
   private final Stats retentionStats = new Stats();
   private JobExecutionContext jobExecutionContext;
@@ -45,8 +53,18 @@ public class DataRetention extends AbstractNativeApplication {
   @Override
   public void init(App app) {
     super.init(app);
+    this.testCaseResultRetentionPeriod =
+        getConfiguredInteger(
+            app.getAppConfiguration(),
+            "testCaseResultRetentionPeriod",
+            DEFAULT_TEST_CASE_RESULT_RETENTION_PERIOD);
+    this.testCaseResultMinimumRetentionCount =
+        getConfiguredInteger(
+            app.getAppConfiguration(),
+            "testCaseResultMinimumRetentionCount",
+            DEFAULT_TEST_CASE_RESULT_MINIMUM_RETENTION_COUNT);
     this.dataRetentionConfiguration =
-        JsonUtils.convertValue(app.getAppConfiguration(), DataRetentionConfiguration.class);
+        JsonUtils.convertValueLenient(app.getAppConfiguration(), DataRetentionConfiguration.class);
     if (CommonUtil.nullOrEmpty(this.dataRetentionConfiguration)) {
       LOG.warn("No retention policy configuration provided. Cleanup tasks will not run.");
     }
@@ -89,6 +107,7 @@ public class DataRetention extends AbstractNativeApplication {
     entityStats.withAdditionalProperty("successful_sent_change_events", new StepStats());
     entityStats.withAdditionalProperty("change_events", new StepStats());
     entityStats.withAdditionalProperty("consumers_dlq", new StepStats());
+    entityStats.withAdditionalProperty("test_case_results", new StepStats());
     retentionStats.setEntityStats(entityStats);
   }
 
@@ -100,6 +119,42 @@ public class DataRetention extends AbstractNativeApplication {
     int retentionPeriod = config.getChangeEventRetentionPeriod();
     LOG.info("Starting cleanup for change events with retention period: {} days.", retentionPeriod);
     cleanChangeEvents(retentionPeriod);
+
+    int resolvedTestCaseResultRetentionPeriod = getTestCaseResultRetentionPeriod();
+    int resolvedTestCaseResultMinimumRetentionCount = getTestCaseResultMinimumRetentionCount();
+    LOG.info(
+        "Starting cleanup for test case results with retention period: {} days and minimum retention count: {}.",
+        resolvedTestCaseResultRetentionPeriod,
+        resolvedTestCaseResultMinimumRetentionCount);
+    cleanTestCaseResults(
+        resolvedTestCaseResultRetentionPeriod, resolvedTestCaseResultMinimumRetentionCount);
+  }
+
+  private Integer getConfiguredInteger(
+      Object appConfiguration, String propertyName, int defaultValue) {
+    if (appConfiguration == null) {
+      return defaultValue;
+    }
+    Object configuredValue = JsonUtils.getMap(appConfiguration).get(propertyName);
+    if (configuredValue instanceof Number number) {
+      return Math.max(MINIMUM_CONFIGURED_INTEGER_VALUE, number.intValue());
+    }
+    return configuredValue != null
+        ? Math.max(
+            MINIMUM_CONFIGURED_INTEGER_VALUE, Integer.parseInt(configuredValue.toString()))
+        : defaultValue;
+  }
+
+  private int getTestCaseResultRetentionPeriod() {
+    return testCaseResultRetentionPeriod != null
+        ? testCaseResultRetentionPeriod
+        : DEFAULT_TEST_CASE_RESULT_RETENTION_PERIOD;
+  }
+
+  private int getTestCaseResultMinimumRetentionCount() {
+    return testCaseResultMinimumRetentionCount != null
+        ? testCaseResultMinimumRetentionCount
+        : DEFAULT_TEST_CASE_RESULT_MINIMUM_RETENTION_COUNT;
   }
 
   @Transaction
@@ -122,6 +177,24 @@ public class DataRetention extends AbstractNativeApplication {
         () -> eventSubscriptionDAO.deleteConsumersDlqInBatches(cutoffMillis, BATCH_SIZE));
 
     LOG.info("Change events cleanup complete.");
+  }
+
+  private void cleanTestCaseResults(int retentionPeriod, int minimumRetentionCount) {
+    LOG.info(
+        "Initiating test case results cleanup: Retention = {} days, minimum retained records per test case = {}.",
+        retentionPeriod,
+        minimumRetentionCount);
+    long cutoffMillis = getRetentionCutoffMillis(retentionPeriod);
+    TestCaseResultRepository testCaseResultRepository =
+        (TestCaseResultRepository) Entity.getEntityTimeSeriesRepository(Entity.TEST_CASE_RESULT);
+
+    executeWithStatsTracking(
+        "test_case_results",
+        () ->
+            testCaseResultRepository.deleteTestCaseResultsBeforeInBatches(
+                cutoffMillis, minimumRetentionCount, BATCH_SIZE));
+
+    LOG.info("Test case results cleanup complete.");
   }
 
   private void executeWithStatsTracking(String entity, Supplier<Integer> deleteFunction) {

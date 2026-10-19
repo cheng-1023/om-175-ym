@@ -10,6 +10,20 @@
       "type": "integer",
       "default": 7,
       "minimum": 1
+    },
+    "testCaseResultRetentionPeriod": {
+      "title": "Test Case Result Retention Period (days)",
+      "description": "Enter the retention period for test case result records in days.",
+      "type": "integer",
+      "default": 90,
+      "minimum": 1
+    },
+    "testCaseResultMinimumRetentionCount": {
+      "title": "Minimum Test Case Results Per Test Case",
+      "description": "Enter the minimum number of latest test case result records to retain for each test case, even when they are older than the retention period.",
+      "type": "integer",
+      "default": 1,
+      "minimum": 1
     }
   },
   "required": [

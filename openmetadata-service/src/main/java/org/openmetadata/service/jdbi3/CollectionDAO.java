@@ -5407,6 +5407,27 @@ public interface CollectionDAO {
         "DELETE FROM data_quality_data_time_series WHERE entityFQNHash = :testCaseFQNHash AND extension = 'testCase.testCaseResult'")
     void deleteAll(@BindFQN("testCaseFQNHash") String entityFQNHash);
 
+    @SqlQuery(
+        "SELECT ranked.json FROM ("
+            + "SELECT dqdts.json, dqdts.timestamp, "
+            + "ROW_NUMBER() OVER (PARTITION BY dqdts.entityFQNHash, dqdts.extension "
+            + "ORDER BY dqdts.timestamp DESC, dqdts.id DESC) AS row_num "
+            + "FROM data_quality_data_time_series dqdts "
+            + "WHERE dqdts.extension = 'testCase.testCaseResult'"
+            + ") ranked "
+            + "WHERE ranked.row_num > :minimumRetentionCount "
+            + "AND ranked.timestamp < :cutoff "
+            + "ORDER BY ranked.timestamp ASC LIMIT :limit")
+    List<String> listExpiredTestCaseResultsRetainingMinimumCount(
+        @Bind("cutoff") long cutoff,
+        @Bind("minimumRetentionCount") int minimumRetentionCount,
+        @Bind("limit") int limit);
+
+    @SqlUpdate(
+        "DELETE FROM data_quality_data_time_series "
+            + "WHERE extension = 'testCase.testCaseResult' AND id IN (<ids>)")
+    int deleteTestCaseResultsByIds(@BindList("ids") List<String> ids);
+
     @ConnectionAwareSqlUpdate(
         value =
             "INSERT INTO data_quality_data_time_series(entityFQNHash, extension, jsonSchema, json, incidentId) "

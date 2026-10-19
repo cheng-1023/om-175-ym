@@ -16,4 +16,13 @@ export interface DataRetentionConfigurationClass {
      * one month).
      */
     changeEventRetentionPeriod: number;
+    /**
+     * Enter the minimum number of latest test case result records to retain for each test case,
+     * even when they are older than the retention period.
+     */
+    testCaseResultMinimumRetentionCount?: number;
+    /**
+     * Enter the retention period for test case result records in days.
+     */
+    testCaseResultRetentionPeriod?: number;
 }

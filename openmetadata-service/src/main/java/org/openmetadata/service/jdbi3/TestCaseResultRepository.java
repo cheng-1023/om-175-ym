@@ -78,6 +78,36 @@ public class TestCaseResultRepository extends EntityTimeSeriesRepository<TestCas
         testCaseResults, String.valueOf(startTs), String.valueOf(endTs), testCaseResults.size());
   }
 
+  public int deleteTestCaseResultsBeforeInBatches(
+      long cutoff, int minimumRetentionCount, int limit) {
+    List<String> jsons =
+        daoCollection
+            .dataQualityDataTimeSeriesDao()
+            .listExpiredTestCaseResultsRetainingMinimumCount(cutoff, minimumRetentionCount, limit);
+    if (CommonUtil.nullOrEmpty(jsons)) {
+      return 0;
+    }
+
+    List<TestCaseResult> testCaseResults = JsonUtils.readObjects(jsons, TestCaseResult.class);
+    List<String> ids =
+        testCaseResults.stream()
+            .map(TestCaseResult::getId)
+            .filter(id -> id != null)
+            .map(UUID::toString)
+            .toList();
+    if (CommonUtil.nullOrEmpty(ids)) {
+      return 0;
+    }
+
+    int deleted = daoCollection.dataQualityDataTimeSeriesDao().deleteTestCaseResultsByIds(ids);
+    if (deleted > 0) {
+      testCaseResults.stream()
+          .filter(testCaseResult -> testCaseResult.getId() != null)
+          .forEach(searchRepository::deleteTimeSeriesEntityById);
+    }
+    return deleted;
+  }
+
   public Response addTestCaseResult(
       String updatedBy, UriInfo uriInfo, String fqn, TestCaseResult testCaseResult) {
     TestCase testCase = Entity.getEntityByName(TEST_CASE, fqn, "", Include.ALL);

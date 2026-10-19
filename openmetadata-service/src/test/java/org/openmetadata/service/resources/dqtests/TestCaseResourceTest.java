@@ -120,6 +120,7 @@ import org.openmetadata.schema.type.TableData;
 import org.openmetadata.schema.type.TagLabel;
 import org.openmetadata.schema.type.TaskStatus;
 import org.openmetadata.service.Entity;
+import org.openmetadata.service.jdbi3.TestCaseResultRepository;
 import org.openmetadata.service.resources.EntityResourceTest;
 import org.openmetadata.service.resources.databases.TableResourceTest;
 import org.openmetadata.service.resources.feeds.FeedResourceTest;
@@ -642,6 +643,86 @@ public class TestCaseResourceTest extends EntityResourceTest<TestCase, CreateTes
             .orElse(null);
     assertNotNull(testCaseFromSearch);
     assertEquals(testCaseResult, testCaseFromSearch.getTestCaseResult());
+  }
+
+  @Test
+  void deleteExpiredTestCaseResultsRetainsConfiguredMinimumResults(TestInfo test)
+      throws IOException, ParseException {
+    String suffix = UUID.randomUUID().toString().replace("-", "");
+    TestCase oldOnlyTestCase =
+        createAndCheckEntity(createRequest("retention_old_min_" + suffix), ADMIN_AUTH_HEADERS);
+    TestCase mixedTestCase =
+        createAndCheckEntity(createRequest("retention_mixed_min_" + suffix), ADMIN_AUTH_HEADERS);
+
+    long oldDeletedTimestamp = dateToTimestamp("2021-08-01");
+    long oldRetainedTimestampOne = dateToTimestamp("2021-08-10");
+    long oldRetainedTimestampTwo = dateToTimestamp("2021-08-20");
+    long mixedOldDeletedTimestamp = dateToTimestamp("2021-08-02");
+    long mixedOldRetainedTimestamp = dateToTimestamp("2021-08-12");
+    long mixedRecentTimestamp = dateToTimestamp("2021-09-20");
+    long cutoff = dateToTimestamp("2021-09-15");
+
+    postTestCaseResult(
+        oldOnlyTestCase.getFullyQualifiedName(),
+        new CreateTestCaseResult()
+            .withResult("old result to delete")
+            .withTestCaseStatus(TestCaseStatus.Success)
+            .withTimestamp(oldDeletedTimestamp),
+        ADMIN_AUTH_HEADERS);
+    postTestCaseResult(
+        oldOnlyTestCase.getFullyQualifiedName(),
+        new CreateTestCaseResult()
+            .withResult("old retained result one")
+            .withTestCaseStatus(TestCaseStatus.Success)
+            .withTimestamp(oldRetainedTimestampOne),
+        ADMIN_AUTH_HEADERS);
+    postTestCaseResult(
+        oldOnlyTestCase.getFullyQualifiedName(),
+        new CreateTestCaseResult()
+            .withResult("old retained result two")
+            .withTestCaseStatus(TestCaseStatus.Success)
+            .withTimestamp(oldRetainedTimestampTwo),
+        ADMIN_AUTH_HEADERS);
+    postTestCaseResult(
+        mixedTestCase.getFullyQualifiedName(),
+        new CreateTestCaseResult()
+            .withResult("mixed old result to delete")
+            .withTestCaseStatus(TestCaseStatus.Success)
+            .withTimestamp(mixedOldDeletedTimestamp),
+        ADMIN_AUTH_HEADERS);
+    postTestCaseResult(
+        mixedTestCase.getFullyQualifiedName(),
+        new CreateTestCaseResult()
+            .withResult("mixed old result to retain")
+            .withTestCaseStatus(TestCaseStatus.Success)
+            .withTimestamp(mixedOldRetainedTimestamp),
+        ADMIN_AUTH_HEADERS);
+    postTestCaseResult(
+        mixedTestCase.getFullyQualifiedName(),
+        new CreateTestCaseResult()
+            .withResult("mixed recent result to retain")
+            .withTestCaseStatus(TestCaseStatus.Success)
+            .withTimestamp(mixedRecentTimestamp),
+        ADMIN_AUTH_HEADERS);
+
+    TestCaseResultRepository testCaseResultRepository =
+        (TestCaseResultRepository) Entity.getEntityTimeSeriesRepository(Entity.TEST_CASE_RESULT);
+    int deleted = testCaseResultRepository.deleteTestCaseResultsBeforeInBatches(cutoff, 2, 100);
+    assertTrue(deleted >= 2);
+
+    ResultList<TestCaseResult> oldOnlyResults =
+        getTestCaseResults(
+            oldOnlyTestCase.getFullyQualifiedName(), 0L, Long.MAX_VALUE, ADMIN_AUTH_HEADERS);
+    assertEquals(2, oldOnlyResults.getData().size());
+    assertEquals(oldRetainedTimestampTwo, oldOnlyResults.getData().get(0).getTimestamp());
+    assertEquals(oldRetainedTimestampOne, oldOnlyResults.getData().get(1).getTimestamp());
+
+    ResultList<TestCaseResult> mixedResults =
+        getTestCaseResults(
+            mixedTestCase.getFullyQualifiedName(), 0L, Long.MAX_VALUE, ADMIN_AUTH_HEADERS);
+    assertEquals(2, mixedResults.getData().size());
+    assertEquals(mixedRecentTimestamp, mixedResults.getData().get(0).getTimestamp());
+    assertEquals(mixedOldRetainedTimestamp, mixedResults.getData().get(1).getTimestamp());
   }
 
   @Test
